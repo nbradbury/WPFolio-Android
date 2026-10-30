@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">WPFolio</string>
+    <string name="swipe_hint_toast">Swipe to move between posts</string>
 </resources>
