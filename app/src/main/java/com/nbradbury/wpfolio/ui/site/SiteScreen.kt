@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -69,11 +70,11 @@ import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.accentFor
 import com.nbradbury.wpfolio.ui.components.displayUrl
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
-import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
+import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -103,51 +104,22 @@ fun SiteScreen(siteId: String, onBack: () -> Unit, onOpenPost: (String) -> Unit)
     val site by viewModel.site.collectAsStateWithLifecycle()
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
-    val gridState = rememberLazyGridState()
     var confirmUnsubscribe by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
-    val coverPx = with(density) { CoverHeight.roundToPx() }
-    val statusBarPx = WindowInsets.statusBars.getTop(density)
-    val overCover by remember {
-        derivedStateOf { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < coverPx - statusBarPx }
-    }
-    SystemBarIcons(lightIcons = overCover || colors.isDark)
 
     val current = site ?: run {
         Box(Modifier.fillMaxSize().background(colors.background))
         return
     }
-    val accent = posts.firstOrNull { it.imageUrl != null }?.accentColor ?: accentFor(null, current.id)
-    val covers = posts.mapNotNull { p -> p.imageUrl?.let { it to p.accentColor } }.take(3)
-
-    Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            state = gridState,
-            contentPadding = PaddingValues(bottom = 40.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) { Cover(covers, accent) }
-            item(key = "info", span = { GridItemSpan(maxLineSpan) }) {
-                SiteInfo(current, accent, onUnsubscribe = { confirmUnsubscribe = true })
-            }
-            itemsIndexed(posts, key = { _, post -> post.id }) { index, post ->
-                val edge = if (index % 2 == 0) Modifier.padding(start = 18.dp) else Modifier.padding(end = 18.dp)
-                GridTile(post, edge) { onOpenPost(post.id) }
-            }
-        }
-        if (!overCover) {
-            Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.background))
-        }
-        OverlayButton(
-            Icons.AutoMirrored.Rounded.ArrowBack,
-            "Back",
-            Modifier.statusBarsPadding().padding(start = 14.dp, top = 8.dp),
-            onClick = onBack,
-        )
-    }
+    SiteLayout(
+        site = current,
+        posts = posts,
+        subscribed = true,
+        busy = false,
+        emptyContent = null,
+        onSubscriptionClick = { confirmUnsubscribe = true },
+        onBack = onBack,
+        onOpenPost = onOpenPost,
+    )
 
     if (confirmUnsubscribe) {
         AlertDialog(
@@ -162,6 +134,67 @@ fun SiteScreen(siteId: String, onBack: () -> Unit, onOpenPost: (String) -> Unit)
             },
             dismissButton = { TextButton(onClick = { confirmUnsubscribe = false }) { Text("Cancel") } },
             containerColor = colors.sheet,
+        )
+    }
+}
+
+/**
+ * The site layout shared by subscribed sites and previews: cover mosaic, header with the
+ * subscription button, then posts in a grid. [emptyContent] fills in while there are no posts.
+ */
+@Composable
+internal fun SiteLayout(
+    site: SiteEntity,
+    posts: List<PostEntity>,
+    subscribed: Boolean,
+    busy: Boolean,
+    emptyContent: (@Composable () -> Unit)?,
+    onSubscriptionClick: () -> Unit,
+    onBack: () -> Unit,
+    onOpenPost: (String) -> Unit,
+) {
+    val colors = WpFolio.colors
+    val gridState = rememberLazyGridState()
+    val density = LocalDensity.current
+    val coverPx = with(density) { CoverHeight.roundToPx() }
+    val statusBarPx = WindowInsets.statusBars.getTop(density)
+    val overCover by remember {
+        derivedStateOf { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < coverPx - statusBarPx }
+    }
+    SystemBarIcons(lightIcons = overCover || colors.isDark)
+
+    val accent = posts.firstOrNull { it.imageUrl != null }?.accentColor ?: accentFor(null, site.id)
+    val covers = posts.mapNotNull { p -> p.imageUrl?.let { it to p.accentColor } }.take(3)
+
+    Box(Modifier.fillMaxSize().background(colors.background)) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            state = gridState,
+            contentPadding = PaddingValues(bottom = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) { Cover(covers, accent) }
+            item(key = "info", span = { GridItemSpan(maxLineSpan) }) {
+                SiteInfo(site, accent, subscribed, busy, onSubscriptionClick)
+            }
+            if (posts.isEmpty() && emptyContent != null) {
+                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { emptyContent() }
+            }
+            itemsIndexed(posts, key = { _, post -> post.id }) { index, post ->
+                val edge = if (index % 2 == 0) Modifier.padding(start = 18.dp) else Modifier.padding(end = 18.dp)
+                GridTile(post, edge) { onOpenPost(post.id) }
+            }
+        }
+        if (!overCover) {
+            Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.background))
+        }
+        OverlayButton(
+            Icons.AutoMirrored.Rounded.ArrowBack,
+            "Back",
+            Modifier.statusBarsPadding().padding(start = 14.dp, top = 8.dp),
+            onClick = onBack,
         )
     }
 }
@@ -181,7 +214,13 @@ private fun Cover(images: List<Pair<String, Color>>, accent: Color) {
 }
 
 @Composable
-private fun SiteInfo(site: SiteEntity, accent: Color, onUnsubscribe: () -> Unit) {
+private fun SiteInfo(
+    site: SiteEntity,
+    accent: Color,
+    subscribed: Boolean,
+    busy: Boolean,
+    onSubscriptionClick: () -> Unit,
+) {
     val colors = WpFolio.colors
     val uriHandler = LocalUriHandler.current
     val clipboard = LocalClipboard.current
@@ -212,13 +251,23 @@ private fun SiteInfo(site: SiteEntity, accent: Color, onUnsubscribe: () -> Unit)
             Text(site.description, style = body(15f, lineHeight = 1.5f), color = colors.body)
         }
         Row(Modifier.padding(top = 2.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Subscribed: outlined with a check. Not yet: filled, like the other Subscribe buttons.
+            val shape = Modifier.weight(1f).height(44.dp).clip(CircleShape)
             Row(
-                Modifier.weight(1f).height(44.dp).clip(CircleShape).border(1.5.dp, colors.text, CircleShape).clickable(onClick = onUnsubscribe),
+                (if (subscribed) shape.border(1.5.dp, colors.text, CircleShape) else shape.background(colors.inverse))
+                    .clickable(enabled = !busy, onClick = onSubscriptionClick),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Check, contentDescription = null, tint = colors.text, modifier = Modifier.size(20.dp))
-                Text("Subscribed", style = ui(14f, 600), color = colors.text)
+                val tint = if (subscribed) colors.text else colors.onInverse
+                when {
+                    busy -> CircularProgressIndicator(Modifier.size(20.dp), color = tint, strokeWidth = 2.dp)
+                    subscribed -> {
+                        Icon(Icons.Rounded.Check, null, tint = tint, modifier = Modifier.size(20.dp))
+                        Text("Subscribed", style = ui(14f, 600), color = tint)
+                    }
+                    else -> Text("Subscribe", style = ui(14f, 600), color = tint)
+                }
             }
             Box {
                 Box(

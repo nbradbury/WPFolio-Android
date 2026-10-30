@@ -41,8 +41,12 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
     val account = repository.account.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val localCount = repository.localSiteCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    fun signOut() {
-        viewModelScope.launch { repository.signOut() }
+    /** [onDone] runs once the account is gone, so the next screen sees the user signed out. */
+    fun signOut(onDone: () -> Unit) {
+        viewModelScope.launch {
+            repository.signOut()
+            onDone()
+        }
     }
 
     fun moveLocalFeeds(onDone: (Int) -> Unit) {
@@ -52,7 +56,12 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountSheet(onDismiss: () -> Unit, onSignIn: () -> Unit, onOpenSaved: () -> Unit) {
+fun AccountSheet(
+    onDismiss: () -> Unit,
+    onSignIn: () -> Unit,
+    onOpenSaved: () -> Unit,
+    onSignedOut: () -> Unit,
+) {
     val viewModel = wpFolioViewModel { AccountViewModel(it) }
     val account by viewModel.account.collectAsStateWithLifecycle()
     val localCount by viewModel.localCount.collectAsStateWithLifecycle()
@@ -90,8 +99,8 @@ fun AccountSheet(onDismiss: () -> Unit, onSignIn: () -> Unit, onOpenSaved: () ->
             SheetRow(Icons.Rounded.Bookmark, "Saved", onClick = onOpenSaved)
             if (current != null) {
                 SheetRow(Icons.AutoMirrored.Rounded.Logout, "Sign out") {
-                    viewModel.signOut()
                     onDismiss()
+                    viewModel.signOut(onSignedOut)
                 }
             }
         }

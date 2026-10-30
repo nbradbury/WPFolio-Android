@@ -149,6 +149,10 @@ interface PostDao {
     @Query("DELETE FROM posts WHERE siteId = :siteId AND isSaved = 0")
     suspend fun deleteForSite(siteId: String)
 
+    /** Removes unsaved posts left behind by previewing sites that were never subscribed to. */
+    @Query("DELETE FROM posts WHERE isSaved = 0 AND siteId NOT IN (SELECT id FROM sites)")
+    suspend fun deleteOrphans()
+
     @Query("DELETE FROM posts WHERE siteId LIKE 'wp:%' AND isSaved = 0")
     suspend fun deleteWpcom()
 }

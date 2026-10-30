@@ -19,6 +19,7 @@ import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.feed.FeedScreen
 import com.nbradbury.wpfolio.ui.onboarding.OnboardingScreen
 import com.nbradbury.wpfolio.ui.saved.SavedScreen
+import com.nbradbury.wpfolio.ui.site.SitePreviewScreen
 import com.nbradbury.wpfolio.ui.site.SiteScreen
 import com.nbradbury.wpfolio.ui.sites.SitesScreen
 import kotlinx.coroutines.launch
@@ -50,6 +51,11 @@ fun WpFolioNavHost(startDestination: Any) {
                 onTab = onTab,
                 onSignIn = signIn,
                 onOpenSaved = { nav.navigate(SavedRoute) },
+                // Back to the first-run screen with nothing behind it. If on-device RSS
+                // subscriptions remain, onboarding forwards straight back to the feed.
+                onSignedOut = {
+                    nav.navigate(OnboardingRoute) { popUpTo(nav.graph.id) { inclusive = true } }
+                },
             )
         }
         composable<SitesRoute> {
@@ -59,6 +65,11 @@ fun WpFolioNavHost(startDestination: Any) {
             val fromOnboarding = entry.toRoute<AddRoute>().fromOnboarding
             AddScreen(
                 onClose = { nav.popBackStack() },
+                onOpenSite = { result ->
+                    val subscribedId = result.subscribedSiteId
+                    // Sites already followed open as usual; others open as a preview.
+                    nav.navigate(if (subscribedId != null) SiteRoute(subscribedId) else result.toPreviewRoute())
+                },
                 onSubscribed = {
                     if (fromOnboarding) {
                         nav.navigate(FeedRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
@@ -78,6 +89,13 @@ fun WpFolioNavHost(startDestination: Any) {
         composable<SiteRoute> { entry ->
             SiteScreen(
                 siteId = entry.toRoute<SiteRoute>().siteId,
+                onBack = { nav.popBackStack() },
+                onOpenPost = openPost,
+            )
+        }
+        composable<SitePreviewRoute> { entry ->
+            SitePreviewScreen(
+                target = entry.toRoute<SitePreviewRoute>().toResult(),
                 onBack = { nav.popBackStack() },
                 onOpenPost = openPost,
             )

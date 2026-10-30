@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.nbradbury.wpfolio.data.db.WpFolioDatabase
 import com.nbradbury.wpfolio.data.db.Origin
+import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.db.SiteEntity
 import com.nbradbury.wpfolio.data.prefs.SettingsStore
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
@@ -162,6 +163,43 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `previewing a WordPress_com site loads its posts without subscribing`() = runBlocking {
+        val post = PostEntity(id = "wps:5:1", siteId = "", siteName = "B", title = "Hi", excerpt = "", contentHtml = "",
+            url = "https://b.test/hi", publishedAt = 1L)
+        wpcom.sitePosts = listOf(WpcomPost(post, liked = false))
+        val siteId = repository.loadPreview(searchResult("http://b.test/feed").copy(feedId = 9, blogId = 5))
+
+        assertEquals("wp:9", siteId)
+        assertEquals(listOf("Hi"), repository.sitePosts(siteId).first().map { it.title })
+        assertNull(db.siteDao().get(siteId))
+        assertTrue(repository.feed().first().isEmpty())
+    }
+
+    @Test
+    fun `previewing a plain feed fetches it on device, trying https first`() = runBlocking {
+        rss.result = FetchResult.Updated(feed(listOf(item("1", "Feed post"))), etag = null, lastModified = null)
+        val siteId = repository.loadPreview(searchResult("http://b.test/feed"))
+
+        assertEquals(listOf("https://b.test/feed", "http://b.test/feed"), rss.fetches)
+        assertEquals("http://b.test/feed", siteId)
+        assertEquals(listOf("Feed post"), repository.sitePosts(siteId).first().map { it.title })
+    }
+
+    @Test
+    fun `pruning removes unsaved preview posts but keeps saved and subscribed ones`() = runBlocking {
+        repository.subscribe(preview(feedUrl = "https://a.test/feed", items = listOf(item("1", "Subscribed"))))
+        rss.result = FetchResult.Updated(feed(listOf(item("2", "Previewed"), item("3", "Kept"))), null, null)
+        val previewId = repository.loadPreview(searchResult("http://b.test/feed"))
+        val kept = repository.sitePosts(previewId).first().single { it.title == "Kept" }
+        repository.toggleSaved(kept.id)
+
+        repository.pruneOrphanedPosts()
+
+        assertEquals(listOf("Kept"), repository.sitePosts(previewId).first().map { it.title })
+        assertEquals(listOf("Subscribed"), repository.feed().first().map { it.title })
+    }
+
+    @Test
     fun `signing out removes WordPress_com sites but keeps local ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         settings.saveAccount(WpcomAccount("token", "Nick", null))
@@ -198,8 +236,10 @@ class ReaderRepositoryTest {
     private class FakeRss : RssSource {
         var result: FetchResult = FetchResult.NotModified
         var fail = false
+        val fetches = mutableListOf<String>()
         override suspend fun fetch(feedUrl: String, etag: String?, lastModified: String?): FetchResult {
-            if (fail) throw java.io.IOException("offline")
+            fetches += feedUrl
+            if (fail || feedUrl.startsWith("https://b.test")) throw java.io.IOException("offline")
             return result
         }
         val lookups = mutableListOf<String>()
@@ -222,7 +262,9 @@ class ReaderRepositoryTest {
             return subscriptions
         }
         override suspend fun following(cursor: PageCursor?) = WpcomPage(emptyList(), null)
-        override suspend fun sitePosts(site: SiteEntity): List<WpcomPost> = emptyList()
+        var sitePosts: List<WpcomPost> = emptyList()
+        override suspend fun sitePosts(site: SiteEntity): List<WpcomPost> =
+            sitePosts.map { it.copy(post = it.post.copy(siteId = site.id)) }
         var searchResults: List<SiteSearchResult> = emptyList()
         override suspend fun searchSites(query: String) = searchResults
         override suspend fun follow(url: String) { followed += url }
