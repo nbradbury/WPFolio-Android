@@ -19,18 +19,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.nbradbury.wpfolio.data.prefs.ReaderSettings
 import com.nbradbury.wpfolio.nav.FeedRoute
 import com.nbradbury.wpfolio.nav.OnboardingRoute
 import com.nbradbury.wpfolio.nav.WpFolioNavHost
 import com.nbradbury.wpfolio.ui.WebOnlyUriHandler
 import com.nbradbury.wpfolio.ui.theme.WpFolioTheme
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -39,9 +35,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen().setKeepOnScreenCondition {
-            viewModel.start.value == null || viewModel.settings.value == null
-        }
+        installSplashScreen().setKeepOnScreenCondition { viewModel.start.value == null }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Content runs under the 3-button nav bar too; the floating pill handles its own contrast.
@@ -49,10 +43,8 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleOAuthRedirect(intent)
 
         setContent {
-            val settings by viewModel.settings.collectAsStateWithLifecycle()
             val start by viewModel.start.collectAsStateWithLifecycle()
-            val theme = settings?.theme ?: return@setContent
-            WpFolioTheme(theme) {
+            WpFolioTheme {
                 val uriHandler = LocalUriHandler.current
                 val webOnly = remember(uriHandler) { WebOnlyUriHandler(uriHandler) }
                 CompositionLocalProvider(LocalUriHandler provides webOnly) {
@@ -81,10 +73,6 @@ class MainActivity : ComponentActivity() {
 }
 
 class MainViewModel(container: AppContainer) : ViewModel() {
-    /** Null until loaded, so the first frame uses the right theme. */
-    val settings: StateFlow<ReaderSettings?> = container.settings.settings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
     /** Onboarding until the user has an account or at least one subscription; null while loading. */
     val start = MutableStateFlow<Any?>(null)
 

@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -53,19 +54,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.data.db.SiteWithLatest
+import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.NavPill
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentFor
 import com.nbradbury.wpfolio.ui.components.displayUrl
 import com.nbradbury.wpfolio.ui.components.relativeTime
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
+import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.Destructive
-import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.SnackbarAction
 import com.nbradbury.wpfolio.ui.theme.SnackbarBackground
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
+import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -165,7 +168,8 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
         }
     }
 
-    Box(Modifier.fillMaxSize().background(colors.background)) {
+    val pill = rememberHideOnScrollState()
+    Box(Modifier.fillMaxSize().background(colors.background).nestedScroll(pill.connection)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
             item(key = "header") {
                 Row(
@@ -208,7 +212,7 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
                 }
             }
         }
-        NavPill(Tab.SITES, onTab, Modifier.align(Alignment.BottomCenter))
+        HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) { NavPill(Tab.SITES, onTab) }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 84.dp)) { data ->
             Snackbar(
                 snackbarData = data,

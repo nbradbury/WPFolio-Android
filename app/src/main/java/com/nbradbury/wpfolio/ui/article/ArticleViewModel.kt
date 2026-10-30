@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nbradbury.wpfolio.AppContainer
 import com.nbradbury.wpfolio.data.db.PostEntity
-import com.nbradbury.wpfolio.data.prefs.ReaderSettings
-import com.nbradbury.wpfolio.data.prefs.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,9 +30,6 @@ class ArticleViewModel(private val postId: String, private val container: AppCon
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val settings: StateFlow<ReaderSettings> = container.settings.settings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderSettings())
-
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
 
@@ -52,13 +47,6 @@ class ArticleViewModel(private val postId: String, private val container: AppCon
         }
     }
 
-    fun setTextScale(scale: Float) {
-        viewModelScope.launch { container.settings.setTextScale(scale) }
-    }
-
-    fun setTheme(theme: ThemeMode) {
-        viewModelScope.launch { container.settings.setTheme(theme) }
-    }
 }
 
 /** The hero already shows the featured image, so drop its first repeat in the body. */

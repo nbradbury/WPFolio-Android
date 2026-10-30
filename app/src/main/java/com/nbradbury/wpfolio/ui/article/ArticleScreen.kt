@@ -8,16 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -79,34 +80,35 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.ui.components.AccentImage
+import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.OverlayButton
 import com.nbradbury.wpfolio.ui.components.PillButton
 import com.nbradbury.wpfolio.ui.components.PillContainer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.accentColor
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
-import com.nbradbury.wpfolio.ui.theme.WpFolio
+import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
+import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.launch
 
 private val LightHeroHeight = 330.dp
 private val DarkHeroHeight = 300.dp
 private val NoImageHeroHeight = 96.dp
 private val SheetOverlap = 26.dp
-private const val BASE_BODY_SIZE = 17f
+private const val BODY_SIZE = 17f
 
 @Composable
 fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
     val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
@@ -129,11 +131,21 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
     val overHero by remember {
         derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < heroPx - statusBarPx }
     }
-    SystemBarIcons(lightIcons = overHero || colors.isDark)
+    val viewerOpen = viewerIndex != null
+    SystemBarIcons(lightIcons = overHero || colors.isDark || viewerOpen, lightNavIcons = colors.isDark || viewerOpen)
 
-    Box(Modifier.fillMaxSize().background(colors.articleBackground)) {
+    // Featured image first, then the post's own images, in reading order.
+    val images = remember(current.imageUrl, blocks) {
+        (listOfNotNull(current.imageUrl?.let { ViewerImage(it, null) }) +
+            blocks.orEmpty().filterIsInstance<Block.Image>().map { ViewerImage(it.url, it.caption) })
+            .distinctBy { it.url }
+    }
+    val openImage: (String) -> Unit = { url -> viewerIndex = images.indexOfFirst { it.url == url }.coerceAtLeast(0) }
+
+    val pill = rememberHideOnScrollState()
+    Box(Modifier.fillMaxSize().background(colors.articleBackground).nestedScroll(pill.connection)) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 120.dp), modifier = Modifier.fillMaxSize()) {
-            item(key = "hero") { ArticleHero(current, heroHeight) }
+            item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
             item(key = "header") { ArticleHeader(current) { onOpenSite(current.siteId) } }
             val loaded = blocks
             if (loaded == null) {
@@ -143,7 +155,7 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
                     }
                 }
             } else {
-                items(loaded.size) { i -> BlockView(loaded[i], settings.textScale, current.accentColor) }
+                items(loaded.size) { i -> BlockView(loaded[i], current.accentColor, onImageClick = openImage) }
                 item(key = "footer") { ArticleFooter(current, summaryOnly = loaded.size < 3) }
             }
         }
@@ -154,45 +166,44 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
         ProgressBar(listState, heroPx, statusBarPx, current.accentColor)
         TopButtons(current, onBack, onOpenSite)
 
-        PillContainer(Modifier.align(Alignment.BottomCenter)) {
-            PillButton(icon = null, label = "Text and theme", text = "Aa") { showSettings = true }
-            PillButton(
-                if (current.isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                if (current.isSaved) "Remove from saved" else "Save",
-                onClick = viewModel::toggleSaved,
-            )
-            PillButton(
-                if (current.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                if (current.isLiked) "Unlike" else "Like",
-                onClick = viewModel::toggleLiked,
-            )
-            PillButton(Icons.Rounded.Share, "Share") {
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, current.title)
-                    putExtra(Intent.EXTRA_TEXT, "${current.title}\n${current.url}")
+        HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) {
+            PillContainer {
+                PillButton(
+                    if (current.isSaved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                    if (current.isSaved) "Remove from saved" else "Save",
+                    onClick = viewModel::toggleSaved,
+                )
+                PillButton(
+                    if (current.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (current.isLiked) "Unlike" else "Like",
+                    onClick = viewModel::toggleLiked,
+                )
+                PillButton(Icons.Rounded.Share, "Share") {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, current.title)
+                        putExtra(Intent.EXTRA_TEXT, "${current.title}\n${current.url}")
+                    }
+                    context.startActivity(Intent.createChooser(send, null))
                 }
-                context.startActivity(Intent.createChooser(send, null))
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
+        viewerIndex?.let { index ->
+            PhotoViewer(images, index, onDismiss = { viewerIndex = null })
+        }
     }
 
-    if (showSettings) {
-        ReaderSettingsSheet(
-            settings = settings,
-            onTextScale = viewModel::setTextScale,
-            onTheme = viewModel::setTheme,
-            onDismiss = { showSettings = false },
-        )
-    }
 }
 
 @Composable
-private fun ArticleHero(post: PostEntity, height: Dp) {
+private fun ArticleHero(post: PostEntity, height: Dp, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
     Box(Modifier.fillMaxWidth().height(height)) {
-        AccentImage(post.imageUrl, post.accentColor, Modifier.fillMaxSize())
+        val imageModifier = post.imageUrl?.let { url ->
+            Modifier.clickable(onClickLabel = "View image") { onImageClick(url) }
+        } ?: Modifier
+        AccentImage(post.imageUrl, post.accentColor, Modifier.fillMaxSize().then(imageModifier))
         if (colors.isDark) {
             Box(
                 Modifier.fillMaxSize().background(
@@ -260,9 +271,9 @@ private fun byline(post: PostEntity): String {
 }
 
 @Composable
-private fun BlockView(block: Block, textScale: Float, accent: Color) {
+private fun BlockView(block: Block, accent: Color, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
-    val size = BASE_BODY_SIZE * textScale
+    val size = BODY_SIZE
     val links = TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline))
     val padded = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 7.dp)
     when (block) {
@@ -288,7 +299,8 @@ private fun BlockView(block: Block, textScale: Float, accent: Color) {
                     .padding(horizontal = 14.dp)
                     .heightIn(min = 120.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(accent.copy(alpha = 0.25f)),
+                    .background(accent.copy(alpha = 0.25f))
+                    .clickable(onClickLabel = "View image") { onImageClick(block.url) },
             )
             block.caption?.let {
                 Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
@@ -309,7 +321,7 @@ private fun BlockView(block: Block, textScale: Float, accent: Color) {
         }
         is Block.Code -> Text(
             block.text,
-            style = ui(14f * textScale).copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
+            style = ui(14f).copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
             color = colors.body,
             modifier = padded
                 .clip(RoundedCornerShape(12.dp))

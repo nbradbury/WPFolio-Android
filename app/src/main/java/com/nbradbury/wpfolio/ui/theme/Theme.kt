@@ -13,10 +13,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import com.nbradbury.wpfolio.data.prefs.ThemeMode
 
 /**
- * The interface is off-white, paper or near-black so that featured images supply the colour.
+ * The interface is off-white or near-black so that featured images supply the colour.
  */
 @Immutable
 data class WpFolioColors(
@@ -61,27 +60,6 @@ val LightColors = WpFolioColors(
     placeholderAvatar = Color(0xFFD8C7B0),
 )
 
-val PaperColors = WpFolioColors(
-    isDark = false,
-    background = Color(0xFFF1E8D8),
-    articleBackground = Color(0xFFF1E8D8),
-    text = Color(0xFF3B2F22),
-    textSecondary = Color(0xFF7A6A55),
-    body = Color(0xFF3B2F22),
-    bodyMuted = Color(0xFF5A4A38),
-    divider = Color(0x1A3B2F22),
-    outline = Color(0x2E3B2F22),
-    inverse = Color(0xFF3B2F22),
-    onInverse = Color(0xFFF1E8D8),
-    pill = Color(0xF03B2F22),
-    pillIcon = Color(0xFFF1E8D8),
-    pillSelected = Color(0xFFF1E8D8),
-    pillSelectedIcon = Color(0xFF3B2F22),
-    sheet = Color(0xFFF7F0E3),
-    card = Color(0xFFF7F0E3),
-    placeholderAvatar = Color(0xFFD8C7B0),
-)
-
 val DarkColors = WpFolioColors(
     isDark = true,
     background = Color(0xFF0F0F10),
@@ -115,13 +93,8 @@ object WpFolio {
 }
 
 @Composable
-fun WpFolioTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    val colors = when (mode) {
-        ThemeMode.LIGHT -> LightColors
-        ThemeMode.PAPER -> PaperColors
-        ThemeMode.DARK -> DarkColors
-        ThemeMode.SYSTEM -> if (isSystemInDarkTheme()) DarkColors else LightColors
-    }
+fun WpFolioTheme(content: @Composable () -> Unit) {
+    val colors = if (isSystemInDarkTheme()) DarkColors else LightColors
     val scheme = if (colors.isDark) {
         darkColorScheme(
             primary = colors.inverse, onPrimary = colors.onInverse,
