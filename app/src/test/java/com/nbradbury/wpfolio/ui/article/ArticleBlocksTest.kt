@@ -33,8 +33,82 @@ class ArticleBlocksTest {
                 Block.ListItem("B", "•", 0),
                 Block.Code("code()"),
                 Block.Rule,
+                Block.Video(
+                    VideoHost.YOUTUBE, "x", "https://img.youtube.com/vi/x/hqdefault.jpg", "https://www.youtube.com/watch?v=x",
+                ),
             ),
             blocks,
         )
+    }
+
+    @Test
+    fun `keeps image dimensions so space can be reserved`() {
+        val html = """
+            <img src="https://a.test/plain.jpg" width="800" height="600">
+            <img src="https://a.test/thumb-150x150.jpg" width="150" height="150"
+                 data-orig-file="https://a.test/full.jpg" data-orig-size="1600,900">
+            <img src="https://a.test/unsized.jpg" width="100%">
+        """.trimIndent()
+        val images = ArticleBlocks.parse(html, "https://a.test/").filterIsInstance<Block.Image>()
+        assertEquals(4f / 3f, images[0].aspectRatio!!, 0.001f)
+        // Loading the original, so its shape wins over the cropped thumbnail's.
+        assertEquals("https://a.test/full.jpg", images[1].url)
+        assertEquals(16f / 9f, images[1].aspectRatio!!, 0.001f)
+        assertEquals(null, images[2].aspectRatio)
+    }
+
+    @Test
+    fun `turns WordPress video embeds into playable blocks`() {
+        // Markup as it appears in WordPress.com feeds.
+        val html = """
+            <figure class="wp-block-embed is-type-video is-provider-youtube"><div class="wp-block-embed__wrapper">
+              <iframe class="youtube-player" width="640" height="360" src="https://www.youtube.com/embed/kdw0QmlFTtA?version=3&amp;rel=1"></iframe>
+            </div></figure>
+            <figure class="wp-block-jetpack-videopress"><div class="jetpack-video-wrapper">
+              <iframe title="VideoPress Video Player" width="500" height="281" src="https://video.wordpress.com/embed/NzPMA2MA?cover=1"></iframe>
+            </div></figure>
+            <p>Watch: <span class="embed-youtube"><iframe src="//www.youtube.com/embed/eEBv0STiYhI?rel=1"></iframe></span></p>
+            <figure class="wp-block-video"><video poster="https://a.test/p.jpg"><source src="https://a.test/clip.mp4"></video></figure>
+            <figure class="wp-block-embed is-provider-vimeo"><div class="wp-block-embed__wrapper">https://vimeo.com/76979871</div></figure>
+        """.trimIndent()
+        val blocks = ArticleBlocks.parse(html, "https://a.test/post/")
+        val videos = blocks.filterIsInstance<Block.Video>()
+        assertEquals(listOf("kdw0QmlFTtA", "NzPMA2MA", "eEBv0STiYhI", "https://a.test/clip.mp4", "76979871"), videos.map { it.id })
+        assertEquals(
+            listOf(VideoHost.YOUTUBE, VideoHost.VIDEOPRESS, VideoHost.YOUTUBE, VideoHost.FILE, VideoHost.VIMEO),
+            videos.map { it.host },
+        )
+        assertEquals(640f / 360f, videos[0].aspectRatio, 0.001f)
+        assertEquals(16f / 9f, videos[2].aspectRatio, 0.001f)
+        assertEquals("https://a.test/p.jpg", videos[3].poster)
+        // The text around an inline embed stays as a paragraph.
+        val paragraph = blocks.filterIsInstance<Block.Paragraph>().single()
+        assertEquals("Watch:", org.jsoup.Jsoup.parse(paragraph.html).text())
+    }
+
+    @Test
+    fun `other iframes become link cards and widgets are dropped`() {
+        val html = """
+            <iframe title="Map of the trail" src="https://maps.example.com/embed?x=1"></iframe>
+            <iframe src="https://widgets.wp.com/likes/index.html"></iframe>
+            <iframe src="https://tracker.example.com/t" width="1" height="1"></iframe>
+            <video src="http://insecure.test/clip.mp4"></video>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                Block.Embed("https://maps.example.com/embed?x=1", "Map of the trail"),
+                Block.Embed("http://insecure.test/clip.mp4", null),
+            ),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
+    fun `recognises video page and short links`() {
+        assertEquals("abc_-123", VideoLinks.parse("https://youtu.be/abc_-123")?.id)
+        assertEquals("abc", VideoLinks.parse("https://www.youtube.com/watch?feature=share&v=abc")?.id)
+        assertEquals("abc", VideoLinks.parse("https://youtube.com/shorts/abc")?.id)
+        assertEquals(null, VideoLinks.parse("https://example.com/watch?v=abc"))
+        assertEquals(null, VideoLinks.parse("http://a.test/clip.mp4"))
     }
 }

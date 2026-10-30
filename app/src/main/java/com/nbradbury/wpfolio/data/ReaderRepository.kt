@@ -168,6 +168,9 @@ class ReaderRepository(
 
     suspend fun pruneOrphanedPosts() = posts.deleteOrphans()
 
+    /** A VideoPress video's poster image, or null if it can't be found. */
+    suspend fun videoPoster(guid: String): String? = runCatching { wpcom.videoPoster(guid) }.getOrNull()
+
     /** Subscribes to a search result and returns the new site's id, if it could be identified. */
     suspend fun subscribe(result: SiteSearchResult): String? {
         if (isSignedIn()) return followOnWpcom(result.feedUrl, result.siteUrl)

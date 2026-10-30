@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -94,6 +95,7 @@ import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
+import com.nbradbury.wpfolio.ui.openInBrowser
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
@@ -214,7 +216,7 @@ private fun ArticlePage(
                     }
                 }
             } else {
-                items(loaded.size) { i -> BlockView(loaded[i], current.accentColor, onImageClick = openImage) }
+                items(loaded.size) { i -> BlockView(loaded[i], current.accentColor, isCurrent, onImageClick = openImage) }
                 item(key = "footer") { ArticleFooter(current, summaryOnly = loaded.size < 3) }
             }
         }
@@ -331,7 +333,7 @@ private fun byline(post: PostEntity): String {
 }
 
 @Composable
-private fun BlockView(block: Block, accent: Color, onImageClick: (String) -> Unit) {
+private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
     val size = BODY_SIZE
     val links = TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline))
@@ -350,6 +352,10 @@ private fun BlockView(block: Block, accent: Color, onImageClick: (String) -> Uni
             modifier = padded.padding(top = 10.dp),
         )
         is Block.Image -> Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+            // Reserve the image's height up front when the HTML says how big it is, so the text
+            // below doesn't jump as images load.
+            val ratio = block.aspectRatio
+            val sized = if (ratio != null) Modifier.aspectRatio(ratio) else Modifier.heightIn(min = 120.dp)
             AsyncImage(
                 model = block.url,
                 contentDescription = block.caption,
@@ -357,7 +363,7 @@ private fun BlockView(block: Block, accent: Color, onImageClick: (String) -> Uni
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp)
-                    .heightIn(min = 120.dp)
+                    .then(sized)
                     .clip(RoundedCornerShape(16.dp))
                     .background(accent.copy(alpha = 0.25f))
                     .clickable(onClickLabel = "View image") { onImageClick(block.url) },
@@ -388,6 +394,8 @@ private fun BlockView(block: Block, accent: Color, onImageClick: (String) -> Uni
                 .background(colors.divider)
                 .padding(14.dp),
         )
+        is Block.Video -> VideoBlock(block, accent, active = isCurrent)
+        is Block.Embed -> EmbedCard(block)
         Block.Rule -> HorizontalDivider(padded.padding(vertical = 12.dp), color = colors.divider)
     }
 }
@@ -463,7 +471,7 @@ private fun Modifier.offsetY(y: () -> Int) = this.then(Modifier.offset { IntOffs
 @Composable
 private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((String) -> Unit)?) {
     val clipboard = LocalClipboard.current
-    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -476,7 +484,7 @@ private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((Strin
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Open in browser") }, onClick = {
                     menu = false
-                    if (post.url.isNotBlank()) uriHandler.openUri(post.url)
+                    context.openInBrowser(post.url)
                 })
                 DropdownMenuItem(text = { Text("Copy link") }, onClick = {
                     menu = false

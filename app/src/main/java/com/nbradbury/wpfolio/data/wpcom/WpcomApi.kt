@@ -40,6 +40,10 @@ interface WpcomApi {
         @Query("meta") meta: String = "site",
     ): JsonObject
 
+    /** VideoPress metadata (poster, size); public videos work signed out. */
+    @GET("rest/v1.1/videos/{guid}")
+    suspend fun video(@Path("guid") guid: String): JsonObject
+
     @POST("rest/v1.1/read/following/mine/new")
     suspend fun follow(@Query("url") url: String, @Query("source") source: String = "wpfolio"): JsonObject
 
