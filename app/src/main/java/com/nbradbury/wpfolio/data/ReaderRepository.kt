@@ -56,7 +56,7 @@ class ReaderRepository(
     val saved: Flow<List<PostEntity>> = posts.observeSaved()
     val sitesWithLatest: Flow<List<SiteWithLatest>> = sites.observeAllWithLatest()
 
-    fun feed(limit: Int = FEED_LIMIT): Flow<List<PostEntity>> = posts.observeFeed(limit)
+    fun feed(): Flow<List<PostEntity>> = posts.observeFeed(FEED_LIMIT)
     fun post(id: String): Flow<PostEntity?> = posts.observe(id)
     fun site(id: String): Flow<SiteEntity?> = sites.observe(id)
     fun sitePosts(id: String): Flow<List<PostEntity>> = posts.observeForSite(id)
@@ -143,9 +143,7 @@ class ReaderRepository(
                 return wpSite.id
             }
         }
-        val secure = target.feedUrl.replaceFirst("http://", "https://")
-        val (feedUrl, result) = runCatching { secure to rss.fetch(secure, null, null) }
-            .getOrElse { target.feedUrl to rss.fetch(target.feedUrl, null, null) }
+        val (feedUrl, result) = httpsFirst(target.feedUrl) { it to rss.fetch(it, null, null) }
         val localSite = previewSite(target, Origin.LOCAL, feedUrl).copy(feedUrl = feedUrl)
         if (result is FetchResult.Updated) posts.merge(result.feed.items.map { it.toEntity(localSite) })
         onPostsChanged()
@@ -174,10 +172,7 @@ class ReaderRepository(
     /** Subscribes to a search result and returns the new site's id, if it could be identified. */
     suspend fun subscribe(result: SiteSearchResult): String? {
         if (isSignedIn()) return followOnWpcom(result.feedUrl, result.siteUrl)
-        // Search often returns http:// feed URLs, and cleartext is blocked, so try https first.
-        val secure = result.feedUrl.replaceFirst("http://", "https://")
-        val preview = runCatching { rss.lookup(secure) }.getOrElse { rss.lookup(result.feedUrl) }
-        return subscribe(preview)
+        return subscribe(httpsFirst(result.feedUrl) { rss.lookup(it) })
     }
 
     /** Subscribes and returns the new site's id, if it could be identified. */
@@ -196,6 +191,15 @@ class ReaderRepository(
         posts.merge(preview.items.map { it.toEntity(site) })
         onPostsChanged()
         return site.id
+    }
+
+    /**
+     * Search often returns http:// feed URLs and cleartext is blocked, so try the https version
+     * first, falling back to [url] as given if that fails.
+     */
+    private inline fun <T> httpsFirst(url: String, block: (String) -> T): T {
+        val secure = url.replaceFirst("http://", "https://")
+        return if (secure == url) block(url) else runCatching { block(secure) }.getOrElse { block(url) }
     }
 
     private suspend fun followOnWpcom(feedUrl: String, siteUrl: String): String? {
@@ -312,7 +316,7 @@ class ReaderRepository(
     }
 
     companion object {
-        const val FEED_LIMIT = 300
+        private const val FEED_LIMIT = 300
         private const val MAX_PARALLEL_FETCHES = 6
 
         fun sameUrl(a: String, b: String): Boolean = normalize(a) == normalize(b)

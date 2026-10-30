@@ -20,7 +20,7 @@ data class WpcomAccount(
     /** Implicit-flow tokens can't be refreshed; once this passes the user has to sign in again. */
     val expiresAt: Long? = null,
 ) {
-    fun isExpired(now: Long = System.currentTimeMillis()) = expiresAt != null && now >= expiresAt
+    fun isExpired() = expiresAt != null && System.currentTimeMillis() >= expiresAt
 }
 
 data class PendingOAuth(val state: String, val codeVerifier: String)

@@ -1,6 +1,5 @@
 package com.nbradbury.wpfolio.nav
 
-import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -29,7 +28,7 @@ import kotlinx.coroutines.launch
 fun WpFolioNavHost(startDestination: Any) {
     val nav = rememberNavController()
     val signIn = rememberSignIn()
-    val onTab: (Tab) -> Unit = { nav.selectTab(it) }
+    val onTab: (Tab) -> Unit = nav::selectTab
     val openPost: (String) -> Unit = { nav.navigate(ArticleRoute(it)) }
     val openSitePost: (String) -> Unit = { nav.navigate(ArticleRoute(it, PostList.SITE)) }
     val openSite: (String) -> Unit = { nav.navigate(SiteRoute(it)) }
@@ -115,15 +114,11 @@ fun WpFolioNavHost(startDestination: Any) {
 
 private fun NavHostController.selectTab(tab: Tab) {
     when (tab) {
-        Tab.HOME -> navigate(FeedRoute) {
-            popUpTo<FeedRoute>()
-            launchSingleTop = true
-        }
-        Tab.SITES -> navigate(SitesRoute) {
-            popUpTo<FeedRoute>()
-            launchSingleTop = true
-        }
         Tab.ADD -> navigate(AddRoute())
+        Tab.HOME, Tab.SITES -> navigate(if (tab == Tab.HOME) FeedRoute else SitesRoute) {
+            popUpTo<FeedRoute>()
+            launchSingleTop = true
+        }
     }
 }
 
@@ -133,13 +128,8 @@ fun rememberSignIn(): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     return {
-        val auth = context.container.auth
-        if (!auth.isConfigured) {
-            Toast.makeText(context, "Set WpcomAuth.CLIENT_ID to enable sign-in", Toast.LENGTH_LONG).show()
-        } else {
-            scope.launch {
-                CustomTabsIntent.Builder().build().launchUrl(context, auth.authorizeUri())
-            }
+        scope.launch {
+            CustomTabsIntent.Builder().build().launchUrl(context, context.container.auth.authorizeUri())
         }
     }
 }

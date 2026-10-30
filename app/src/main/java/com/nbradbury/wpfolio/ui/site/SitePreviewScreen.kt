@@ -51,7 +51,7 @@ class SitePreviewViewModel(
     private val _loading = MutableStateFlow(true)
     val loading = _loading.asStateFlow()
 
-    private val _subscribed = MutableStateFlow(target.subscribedSiteId != null)
+    private val _subscribed = MutableStateFlow(false)
     val subscribed = _subscribed.asStateFlow()
 
     private val _subscribing = MutableStateFlow(false)

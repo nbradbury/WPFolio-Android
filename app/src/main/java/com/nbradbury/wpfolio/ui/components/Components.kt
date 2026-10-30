@@ -103,12 +103,12 @@ fun SiteAvatar(
 }
 
 @Composable
-fun AccountAvatar(account: WpcomAccount?, onClick: () -> Unit, size: Dp = 32.dp, border: Color? = null) {
+fun AccountAvatar(account: WpcomAccount?, onClick: (() -> Unit)? = null, size: Dp = 32.dp, border: Color? = null) {
     val colors = WpFolio.colors
-    val base = Modifier
-        .size(size)
-        .clip(CircleShape)
-        .clickable(role = Role.Button, onClickLabel = "Account", onClick = onClick)
+    // Only a button when there's something to do; otherwise it's just the account's picture.
+    val base = Modifier.size(size).clip(CircleShape).let {
+        if (onClick != null) it.clickable(role = Role.Button, onClickLabel = "Account", onClick = onClick) else it
+    }
     Box(
         (if (border != null) base.border(2.dp, border, CircleShape) else base).background(colors.placeholderAvatar),
         contentAlignment = Alignment.Center,
@@ -131,7 +131,7 @@ fun NavPill(current: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier
         PillButton(Icons.AutoMirrored.Rounded.FormatListBulleted, "Sites", selected = current == Tab.SITES) {
             onSelect(Tab.SITES)
         }
-        PillButton(Icons.Rounded.Add, "Add a site", selected = false, iconSize = 24.dp) { onSelect(Tab.ADD) }
+        PillButton(Icons.Rounded.Add, "Add a site", iconSize = 24.dp) { onSelect(Tab.ADD) }
     }
 }
 
@@ -150,11 +150,10 @@ fun PillContainer(modifier: Modifier = Modifier, content: @Composable () -> Unit
 
 @Composable
 fun PillButton(
-    icon: ImageVector?,
+    icon: ImageVector,
     label: String,
     selected: Boolean = false,
     iconSize: Dp = 22.dp,
-    text: String? = null,
     onClick: () -> Unit,
 ) {
     val colors = WpFolio.colors
@@ -167,11 +166,7 @@ fun PillButton(
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(iconSize))
-        } else if (text != null) {
-            Text(text, style = ui(16f, 600), color = tint)
-        }
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 

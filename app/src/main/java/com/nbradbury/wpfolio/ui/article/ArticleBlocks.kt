@@ -2,7 +2,6 @@ package com.nbradbury.wpfolio.ui.article
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
 sealed interface Block {

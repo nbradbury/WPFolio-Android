@@ -55,6 +55,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nbradbury.wpfolio.R
@@ -419,7 +420,7 @@ private fun LoadMoreEffect(lastVisibleIndex: () -> Int, count: Int, onLoadMore: 
 }
 
 /** Lets a full-span grid item ignore the grid's horizontal content padding. */
-private fun Modifier.bleed(horizontal: androidx.compose.ui.unit.Dp) = layout { measurable, constraints ->
+private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
     val extra = (horizontal * 2).roundToPx()
     val width = constraints.maxWidth + extra
     val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))

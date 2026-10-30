@@ -11,7 +11,6 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -92,18 +91,19 @@ fun PhotoViewer(images: List<ViewerImage>, startIndex: Int, onDismiss: () -> Uni
                     }
                 }
                 images[pager.currentPage].caption?.let { caption ->
-                    Column(
-                        Modifier
+                    Text(
+                        caption,
+                        style = ui(14f, 500, lineHeight = 1.4f),
+                        color = Color.White,
+                        modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .background(
                                 Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))
                             )
                             .navigationBarsPadding()
-                            .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp)
-                    ) {
-                        Text(caption, style = ui(14f, 500, lineHeight = 1.4f), color = Color.White)
-                    }
+                            .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp),
+                    )
                 }
             }
         }

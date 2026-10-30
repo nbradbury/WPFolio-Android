@@ -117,7 +117,9 @@ class SitesViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SitesUiState())
 
-    fun setFilter(value: SiteFilter) = filter.update { value }
+    fun setFilter(value: SiteFilter) {
+        filter.value = value
+    }
 
     /** Returns false if the site is already hidden, since a settled swipe can report its dismissal twice. */
     fun hide(siteId: String): Boolean {
@@ -305,7 +307,7 @@ private fun SiteRow(item: SiteWithLatest, onClick: () -> Unit) {
 }
 
 @Composable
-fun RssBadge() {
+private fun RssBadge() {
     val colors = WpFolio.colors
     Text(
         "RSS",

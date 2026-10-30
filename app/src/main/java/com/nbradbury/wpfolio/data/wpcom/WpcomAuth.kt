@@ -36,8 +36,6 @@ class WpcomAuth(
     private val client: OkHttpClient,
     private val settings: SettingsStore,
 ) {
-    val isConfigured: Boolean get() = CLIENT_ID.isNotBlank()
-
     fun isRedirect(uri: Uri?): Boolean = uri != null && uri.scheme == REDIRECT_SCHEME && uri.host == REDIRECT_HOST
 
     suspend fun authorizeUri(): Uri {
@@ -74,7 +72,7 @@ class WpcomAuth(
     }
 
     companion object {
-        /** Public client ID from https://developer.wordpress.com/apps/; sign-in is disabled while blank. */
+        /** Public client ID from https://developer.wordpress.com/apps/. */
         const val CLIENT_ID = "151832"
 
         const val REDIRECT_SCHEME = "wpfolio"
