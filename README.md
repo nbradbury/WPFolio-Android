@@ -1,6 +1,6 @@
 # <img src="art/ic_launcher-playstore.png" alt="" width="48" align="absmiddle"> WPFolio
 
-A gallery-first reader for Android. It follows WordPress.com subscriptions and any RSS or Atom feed, and lets each post's featured image supply the colour.
+A gallery-first reader for Android. It follows WordPress.com subscriptions and any RSS or Atom feed, and lets each post's featured image supply the color.
 
 
 
