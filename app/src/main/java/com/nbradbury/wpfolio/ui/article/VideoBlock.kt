@@ -6,6 +6,7 @@ import android.graphics.Color as AndroidColor
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -55,11 +56,48 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import coil3.compose.AsyncImage
 import com.nbradbury.wpfolio.container
+import com.nbradbury.wpfolio.ui.WebOnlyUriHandler
 import com.nbradbury.wpfolio.ui.components.displayUrl
+import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+
+/** Player frames allowed to use the share bridge; the post's own page never gets it. */
+private val PLAYER_ORIGINS = setOf(
+    "https://www.youtube.com",
+    "https://player.vimeo.com",
+    "https://videopress.com",
+    "https://video.wordpress.com",
+)
+
+/** JS object the share bridge exposes in player frames. */
+private const val SHARE_BRIDGE = "WPFolioShare"
+
+/**
+ * WebView has no Web Share API, so players fall back to their own cramped share panels. This
+ * supplies navigator.share in player frames and forwards the request to the app's share sheet.
+ */
+private val SHARE_POLYFILL = """
+    (function () {
+      if (navigator.share || !window.$SHARE_BRIDGE) return;
+      navigator.canShare = function () { return true; };
+      navigator.share = function (data) {
+        data = data || {};
+        $SHARE_BRIDGE.postMessage(JSON.stringify({
+          title: String(data.title || ''), text: String(data.text || ''), url: String(data.url || '')
+        }));
+        return Promise.resolve();
+      };
+    })();
+""".trimIndent()
 
 /**
  * Sent as the referrer for embedded players. YouTube refuses to play in an app's WebView unless
@@ -85,7 +123,8 @@ internal fun VideoBlock(video: Block.Video, accent: Color, active: Boolean) {
             .background(Color.Black),
     ) {
         if (playing) {
-            VideoPlayer(video, Modifier.fillMaxSize())
+            // If the WebView's renderer dies, fall back to the poster rather than crash.
+            VideoPlayer(video, Modifier.fillMaxSize(), onRendererGone = { playing = false })
         } else {
             VideoPoster(video, accent) { playing = true }
         }
@@ -125,7 +164,7 @@ private fun VideoPoster(video: Block.Video, accent: Color, onPlay: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun VideoPlayer(video: Block.Video, modifier: Modifier) {
+private fun VideoPlayer(video: Block.Video, modifier: Modifier, onRendererGone: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -157,7 +196,8 @@ private fun VideoPlayer(video: Block.Video, modifier: Modifier) {
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
                 webChromeClient = chrome
-                webViewClient = PlayerClient(uriHandler)
+                webViewClient = PlayerClient(uriHandler, onRendererGone)
+                installShareBridge(this, video)
                 loadDataWithBaseURL(PLAYER_ORIGIN, playerHtml(video), "text/html", "utf-8", null)
                 webView = this
             }
@@ -169,6 +209,21 @@ private fun VideoPlayer(video: Block.Video, modifier: Modifier) {
         },
         modifier = modifier,
     )
+}
+
+/** Routes the players' share buttons to Android's share sheet, where WebView supports it. */
+private fun installShareBridge(webView: WebView, video: Block.Video) {
+    // Both are needed: the listener receives shares, the script makes players send them.
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
+    WebViewCompat.addWebMessageListener(webView, SHARE_BRIDGE, PLAYER_ORIGINS) { view, message, _, _, _ ->
+        val data = message.data?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
+        fun field(name: String) = (data?.get(name) as? JsonPrimitive)?.contentOrNull.orEmpty().trim()
+        // Players share their own page link; fall back to the video's page if it's missing or odd.
+        val url = field("url").takeIf { WebOnlyUriHandler.isWebUrl(it) } ?: video.pageUrl
+        view.context.shareLink(field("title").ifBlank { field("text") }, url)
+    }
+    WebViewCompat.addDocumentStartJavaScript(webView, SHARE_POLYFILL, PLAYER_ORIGINS)
 }
 
 /** A page holding just the player, filling the WebView. */
@@ -197,7 +252,15 @@ private fun iframe(src: String) =
     "<iframe src=\"$src\" allow=\"autoplay; fullscreen; encrypted-media; picture-in-picture\" allowfullscreen></iframe>"
 
 /** Keeps the player in place; links out of it (such as "Watch on YouTube") open in a tab instead. */
-private class PlayerClient(private val uriHandler: UriHandler) : WebViewClient() {
+private class PlayerClient(
+    private val uriHandler: UriHandler,
+    private val onRendererGone: () -> Unit,
+) : WebViewClient() {
+    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+        onRendererGone()
+        return true
+    }
+
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         if (!request.isForMainFrame) return false
         uriHandler.openUri(request.url.toString())

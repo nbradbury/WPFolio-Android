@@ -1,7 +1,6 @@
 package com.nbradbury.wpfolio.ui.article
 
 import android.content.ClipData
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -96,6 +95,7 @@ import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.openInBrowser
+import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
@@ -239,14 +239,7 @@ private fun ArticlePage(
                     if (current.isLiked) "Unlike" else "Like",
                     onClick = viewModel::toggleLiked,
                 )
-                PillButton(Icons.Rounded.Share, "Share") {
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, current.title)
-                        putExtra(Intent.EXTRA_TEXT, "${current.title}\n${current.url}")
-                    }
-                    context.startActivity(Intent.createChooser(send, null))
-                }
+                PillButton(Icons.Rounded.Share, "Share") { context.shareLink(current.title, current.url) }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
