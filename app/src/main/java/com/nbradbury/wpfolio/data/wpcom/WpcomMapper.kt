@@ -26,6 +26,8 @@ data class SiteSearchResult(
     val description: String,
     val iconUrl: String?,
     val isWordPress: Boolean,
+    val feedId: Long? = null,
+    val blogId: Long? = null,
     val subscribedSiteId: String? = null,
 )
 
@@ -83,6 +85,8 @@ object WpcomMapper {
                 description = site?.string("description")?.unescape().orEmpty(),
                 iconUrl = site?.obj("icon")?.string("img"),
                 isWordPress = (feed.long("blog_ID") ?: 0L) > 0,
+                feedId = feed.long("feed_ID")?.takeIf { it > 0 },
+                blogId = feed.long("blog_ID")?.takeIf { it > 0 },
             )
         }.distinctBy { it.feedUrl }
 

@@ -1,5 +1,6 @@
 package com.nbradbury.wpfolio.nav
 
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import kotlinx.serialization.Serializable
 
 @Serializable data object OnboardingRoute
@@ -9,3 +10,39 @@ import kotlinx.serialization.Serializable
 @Serializable data class AddRoute(val fromOnboarding: Boolean = false)
 @Serializable data class ArticleRoute(val postId: String)
 @Serializable data class SiteRoute(val siteId: String)
+
+/** A site that may not be subscribed to yet, opened from Add's search results or URL preview. */
+@Serializable
+data class SitePreviewRoute(
+    val name: String,
+    val siteUrl: String,
+    val feedUrl: String,
+    val description: String,
+    val iconUrl: String? = null,
+    val isWordPress: Boolean,
+    // 0 means unknown; WordPress.com IDs are always positive.
+    val feedId: Long = 0,
+    val blogId: Long = 0,
+) {
+    fun toResult() = SiteSearchResult(
+        name = name,
+        siteUrl = siteUrl,
+        feedUrl = feedUrl,
+        description = description,
+        iconUrl = iconUrl,
+        isWordPress = isWordPress,
+        feedId = feedId.takeIf { it > 0 },
+        blogId = blogId.takeIf { it > 0 },
+    )
+}
+
+fun SiteSearchResult.toPreviewRoute() = SitePreviewRoute(
+    name = name,
+    siteUrl = siteUrl,
+    feedUrl = feedUrl,
+    description = description,
+    iconUrl = iconUrl,
+    isWordPress = isWordPress,
+    feedId = feedId ?: 0,
+    blogId = blogId ?: 0,
+)

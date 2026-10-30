@@ -79,6 +79,7 @@ class MainViewModel(container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             val repo = container.repository
+            repo.pruneOrphanedPosts()
             val hasContent = combine(repo.account, repo.siteCount) { account, count -> account != null || count > 0 }
                 .first()
             start.value = if (hasContent) FeedRoute else OnboardingRoute

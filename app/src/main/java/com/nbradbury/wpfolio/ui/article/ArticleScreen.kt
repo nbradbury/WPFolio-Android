@@ -105,6 +105,7 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
     val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
+    val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -146,7 +147,9 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
     Box(Modifier.fillMaxSize().background(colors.articleBackground).nestedScroll(pill.connection)) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 120.dp), modifier = Modifier.fillMaxSize()) {
             item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
-            item(key = "header") { ArticleHeader(current) { onOpenSite(current.siteId) } }
+            item(key = "header") {
+                ArticleHeader(current, onOpenSite = if (siteSubscribed) ({ onOpenSite(current.siteId) }) else null)
+            }
             val loaded = blocks
             if (loaded == null) {
                 item(key = "loading") {
@@ -164,7 +167,7 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
             Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.articleBackground))
         }
         ProgressBar(listState, heroPx, statusBarPx, current.accentColor)
-        TopButtons(current, onBack, onOpenSite)
+        TopButtons(current, onBack, onOpenSite.takeIf { siteSubscribed })
 
         HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) {
             PillContainer {
@@ -235,7 +238,8 @@ private fun ArticleHero(post: PostEntity, height: Dp, onImageClick: (String) -> 
 }
 
 @Composable
-private fun ArticleHeader(post: PostEntity, onOpenSite: () -> Unit) {
+private fun ArticleHeader(post: PostEntity, onOpenSite: (() -> Unit)?) {
+    val siteLink = if (onOpenSite != null) Modifier.clickable(onClick = onOpenSite) else Modifier
     val colors = WpFolio.colors
     Column(
         Modifier.padding(start = 22.dp, end = 22.dp, top = if (colors.isDark) 14.dp else 4.dp, bottom = 14.dp),
@@ -246,11 +250,11 @@ private fun ArticleHeader(post: PostEntity, onOpenSite: () -> Unit) {
                 post.siteName.uppercase(),
                 style = ui(12f, 600, tracking = 0.06f),
                 color = colors.bodyMuted,
-                modifier = Modifier.clickable(onClick = onOpenSite),
+                modifier = siteLink,
             )
         } else {
             Row(
-                Modifier.clickable(onClick = onOpenSite),
+                siteLink,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -401,7 +405,7 @@ private fun ProgressBar(listState: LazyListState, heroPx: Int, statusBarPx: Int,
 private fun Modifier.offsetY(y: () -> Int) = this.then(Modifier.offset { IntOffset(0, y()) })
 
 @Composable
-private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
+private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((String) -> Unit)?) {
     val clipboard = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -422,10 +426,12 @@ private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: (String
                     menu = false
                     scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(post.title, post.url))) }
                 })
-                DropdownMenuItem(text = { Text("View ${post.siteName}") }, onClick = {
-                    menu = false
-                    onOpenSite(post.siteId)
-                })
+                if (onOpenSite != null) {
+                    DropdownMenuItem(text = { Text("View ${post.siteName}") }, onClick = {
+                        menu = false
+                        onOpenSite(post.siteId)
+                    })
+                }
             }
         }
     }

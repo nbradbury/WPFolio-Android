@@ -85,6 +85,7 @@ fun FeedScreen(
     onTab: (Tab) -> Unit,
     onSignIn: () -> Unit,
     onOpenSaved: () -> Unit,
+    onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { FeedViewModel(it.repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -111,10 +112,15 @@ fun FeedScreen(
     }
 
     if (showAccount) {
-        AccountSheet(onDismiss = { showAccount = false }, onSignIn = onSignIn, onOpenSaved = {
-            showAccount = false
-            onOpenSaved()
-        })
+        AccountSheet(
+            onDismiss = { showAccount = false },
+            onSignIn = onSignIn,
+            onOpenSaved = {
+                showAccount = false
+                onOpenSaved()
+            },
+            onSignedOut = onSignedOut,
+        )
     }
 }
 

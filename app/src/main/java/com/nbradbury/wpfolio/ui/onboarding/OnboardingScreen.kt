@@ -76,7 +76,9 @@ private val SAMPLE_COLUMNS = listOf(
 fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedIn: () -> Unit) {
     val context = LocalContext.current
     val account by context.container.repository.account.collectAsStateWithLifecycle(initialValue = null)
-    LaunchedEffect(account) { if (account != null) onSignedIn() }
+    val siteCount by context.container.repository.siteCount.collectAsStateWithLifecycle(initialValue = 0)
+    // Signing in, or subscribing from Add (including a site preview opened from there), moves on.
+    LaunchedEffect(account, siteCount) { if (account != null || siteCount > 0) onSignedIn() }
     SystemBarIcons(lightIcons = true, lightNavIcons = true)
 
     val colors = DarkColors

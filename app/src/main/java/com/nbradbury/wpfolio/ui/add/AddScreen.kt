@@ -175,7 +175,11 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
  * anything else to search WordPress.com Reader for sites.
  */
 @Composable
-fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
+fun AddScreen(
+    onClose: () -> Unit,
+    onOpenSite: (SiteSearchResult) -> Unit,
+    onSubscribed: () -> Unit,
+) {
     val viewModel = wpFolioViewModel { AddViewModel(it) }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -217,7 +221,12 @@ fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
         when (val s = state) {
             is AddState.Failed -> Text(s.message, style = ui(13.5f, 500), color = Destructive)
             is AddState.Found -> {
-                PreviewCard(s, subscribing == s.result.preview.feedUrl) { viewModel.subscribe(onSubscribed) }
+                PreviewCard(
+                    found = s,
+                    subscribing = subscribing == s.result.preview.feedUrl,
+                    onOpen = { onOpenSite(s.result.toSearchResult()) },
+                    onSubscribe = { viewModel.subscribe(onSubscribed) },
+                )
                 if (!s.result.preview.isWordPress) {
                     Text(
                         "Not a WordPress site, so posts open in full-text mode when the feed allows it.",
@@ -228,7 +237,7 @@ fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
                     )
                 }
             }
-            is AddState.Results -> SearchResults(s, subscribing) { viewModel.subscribe(it, onSubscribed) }
+            is AddState.Results -> SearchResults(s, subscribing, onOpenSite) { viewModel.subscribe(it, onSubscribed) }
             else -> Unit
         }
     }
@@ -291,7 +300,7 @@ private fun QueryField(
 }
 
 @Composable
-private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onSubscribe: () -> Unit) {
+private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onOpen: () -> Unit, onSubscribe: () -> Unit) {
     val colors = WpFolio.colors
     val preview = found.result.preview
     val accent = accentFor(found.accent, preview.feedUrl)
@@ -304,6 +313,7 @@ private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onSubscribe
             .shadow(10.dp, shape, ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.12f))
             .clip(shape)
             .background(colors.card)
+            .clickable(onClickLabel = "See posts", onClick = onOpen)
     ) {
         if (images.isNotEmpty()) {
             Row(
@@ -373,7 +383,12 @@ private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onSubscribe
 }
 
 @Composable
-private fun SearchResults(state: AddState.Results, subscribing: String?, onSubscribe: (SiteSearchResult) -> Unit) {
+private fun SearchResults(
+    state: AddState.Results,
+    subscribing: String?,
+    onOpen: (SiteSearchResult) -> Unit,
+    onSubscribe: (SiteSearchResult) -> Unit,
+) {
     val colors = WpFolio.colors
     if (state.results.isEmpty()) {
         Text("No sites found for \u201c${state.query}\u201d", style = ui(14f, 500), color = colors.textSecondary)
@@ -381,17 +396,31 @@ private fun SearchResults(state: AddState.Results, subscribing: String?, onSubsc
     }
     Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         state.results.forEach { result ->
-            SearchResultRow(result, subscribing == result.feedUrl, enabled = subscribing == null) {
-                onSubscribe(result)
-            }
+            SearchResultRow(
+                result = result,
+                subscribing = subscribing == result.feedUrl,
+                enabled = subscribing == null,
+                onOpen = { onOpen(result) },
+                onSubscribe = { onSubscribe(result) },
+            )
         }
     }
 }
 
 @Composable
-private fun SearchResultRow(result: SiteSearchResult, subscribing: Boolean, enabled: Boolean, onSubscribe: () -> Unit) {
+private fun SearchResultRow(
+    result: SiteSearchResult,
+    subscribing: Boolean,
+    enabled: Boolean,
+    onOpen: () -> Unit,
+    onSubscribe: () -> Unit,
+) {
     val colors = WpFolio.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.clickable(onClickLabel = "See posts", onClick = onOpen),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         SiteAvatar(result.iconUrl, result.name, accentFor(null, result.feedUrl), 44.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(result.name, style = ui(15f, 600), color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -438,3 +467,14 @@ private fun SearchResultRow(result: SiteSearchResult, subscribing: Boolean, enab
         }
     }
 }
+
+/** The URL-lookup preview as a search result, so it opens the same site preview. */
+private fun LookupResult.toSearchResult() = SiteSearchResult(
+    name = preview.name,
+    siteUrl = preview.siteUrl,
+    feedUrl = preview.feedUrl,
+    description = preview.description,
+    iconUrl = null,
+    isWordPress = preview.isWordPress,
+    subscribedSiteId = subscribedSiteId,
+)

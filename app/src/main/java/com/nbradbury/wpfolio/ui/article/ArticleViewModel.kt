@@ -5,22 +5,34 @@ import androidx.lifecycle.viewModelScope
 import com.nbradbury.wpfolio.AppContainer
 import com.nbradbury.wpfolio.data.db.PostEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ArticleViewModel(private val postId: String, private val container: AppContainer) : ViewModel() {
     private val repository = container.repository
 
     val post: StateFlow<PostEntity?> = repository.post(postId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Posts opened from a site preview belong to no subscription, so there's no site screen. */
+    val siteSubscribed: StateFlow<Boolean> = repository.post(postId)
+        .filterNotNull()
+        .map { it.siteId }
+        .distinctUntilChanged()
+        .flatMapLatest { repository.site(it) }
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val blocks: StateFlow<List<Block>?> = repository.post(postId)
         .filterNotNull()

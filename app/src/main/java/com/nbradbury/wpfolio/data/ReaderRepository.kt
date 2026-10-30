@@ -12,6 +12,7 @@ import com.nbradbury.wpfolio.data.rss.ParsedItem
 import com.nbradbury.wpfolio.data.rss.RssSource
 import com.nbradbury.wpfolio.data.wpcom.PageCursor
 import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
+import com.nbradbury.wpfolio.data.wpcom.WpcomMapper
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
 import com.nbradbury.wpfolio.data.wpcom.WpcomSource
 import com.nbradbury.wpfolio.data.wpcom.WpcomToken
@@ -118,6 +119,47 @@ class ReaderRepository(
             val existing = sites.findByUrl(result.feedUrl) ?: sites.findByUrl(result.siteUrl)
             result.copy(subscribedSiteId = existing?.id)
         }
+
+    /**
+     * Loads posts for a site that may not be subscribed to, so it can be previewed, and returns
+     * the site id they're stored under. WordPress.com is tried first since it works signed out
+     * for WordPress sites; otherwise the feed is fetched on device. The posts belong to no
+     * subscription, so the feed ignores them and [pruneOrphanedPosts] clears them later.
+     */
+    suspend fun loadPreview(target: SiteSearchResult): String {
+        val wpSite = previewSite(target, Origin.WPCOM, WpcomMapper.siteKey(target.feedId, target.blogId))
+        if (target.feedId != null || target.blogId != null) {
+            val loaded = runCatching { wpcom.sitePosts(wpSite) }.getOrDefault(emptyList())
+            if (loaded.isNotEmpty()) {
+                mergeWpcom(loaded)
+                onPostsChanged()
+                return wpSite.id
+            }
+        }
+        val secure = target.feedUrl.replaceFirst("http://", "https://")
+        val (feedUrl, result) = runCatching { secure to rss.fetch(secure, null, null) }
+            .getOrElse { target.feedUrl to rss.fetch(target.feedUrl, null, null) }
+        val localSite = previewSite(target, Origin.LOCAL, feedUrl).copy(feedUrl = feedUrl)
+        if (result is FetchResult.Updated) posts.merge(result.feed.items.map { it.toEntity(localSite) })
+        onPostsChanged()
+        return localSite.id
+    }
+
+    /** An unsaved site row describing [target], used to label previewed posts. */
+    fun previewSite(target: SiteSearchResult, origin: Origin, id: String) = SiteEntity(
+        id = id,
+        origin = origin,
+        name = target.name,
+        siteUrl = target.siteUrl,
+        feedUrl = target.feedUrl,
+        description = target.description,
+        iconUrl = target.iconUrl,
+        isWordPress = target.isWordPress,
+        wpcomFeedId = target.feedId,
+        wpcomBlogId = target.blogId,
+    )
+
+    suspend fun pruneOrphanedPosts() = posts.deleteOrphans()
 
     /** Subscribes to a search result and returns the new site's id, if it could be identified. */
     suspend fun subscribe(result: SiteSearchResult): String? {
