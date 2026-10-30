@@ -1,19 +1,13 @@
-# <img src="art/ic_launcher-playstore.png" alt="" width="48" align="absmiddle"> WP-ReadMe
+# <img src="art/ic_launcher-playstore.png" alt="" width="48" align="absmiddle"> WPFolio
 
 A gallery-first reader for Android. It follows WordPress.com subscriptions and any RSS or Atom feed, and lets each post's featured image supply the colour.
 
 ## Setup
 
 1. Open the project in Android Studio, or build with `./gradlew :app:assembleDebug`.
-2. To enable WordPress.com sign-in, register an app at https://developer.wordpress.com/apps/ with the redirect URL `wpreadme://oauth`, then add its credentials to `local.properties`:
+2. To enable WordPress.com sign-in, register an app at https://developer.wordpress.com/apps/ with the redirect URL `wpfolio://oauth`, then set its client ID in `WpcomAuth.CLIENT_ID`. Sign-in uses the OAuth implicit flow, so there's no client secret. Until the ID is set the app works in RSS-only mode.
 
-   ```
-   WPCOM_CLIENT_ID=12345
-   WPCOM_CLIENT_SECRET=...
-   WPCOM_REDIRECT_URI=wpreadme://oauth
-   ```
-
-   Without these the app works in RSS-only mode and the sign-in button explains what's missing.
+   Implicit-flow tokens can't be refreshed. When one expires the app signs out and asks you to sign in again.
 
 ## How it works
 
