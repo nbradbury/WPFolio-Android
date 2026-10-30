@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.ResponseBody
 import okhttp3.coroutines.executeAsync
 import java.io.IOException
 
@@ -32,7 +33,7 @@ class OkHttpRssSource(private val client: OkHttpClient) : RssSource {
         client.newCall(request).executeAsync().use { response ->
             if (response.code == 304) return FetchResult.NotModified
             if (!response.isSuccessful) throw IOException("HTTP ${response.code} for $feedUrl")
-            val body = withContext(Dispatchers.IO) { response.body.string() }
+            val body = withContext(Dispatchers.IO) { response.body.stringWithLimit() }
             val feed = withContext(Dispatchers.Default) { FeedParser.parse(body, feedUrl) }
                 ?: throw IOException("Not a feed: $feedUrl")
             return FetchResult.Updated(feed, response.header("ETag"), response.header("Last-Modified"))
@@ -88,7 +89,7 @@ class OkHttpRssSource(private val client: OkHttpClient) : RssSource {
         val request = Request.Builder().url(url).build()
         client.newCall(request).executeAsync().use { response ->
             if (!response.isSuccessful) throw LookupException("The site returned an error (${response.code})")
-            val body = withContext(Dispatchers.IO) { response.body.string() }
+            val body = withContext(Dispatchers.IO) { response.body.stringWithLimit() }
             return response.request.url.toString() to body
         }
     }
@@ -107,4 +108,16 @@ class OkHttpRssSource(private val client: OkHttpClient) : RssSource {
         fun hostOf(url: String): String =
             runCatching { java.net.URI(url).host?.removePrefix("www.") }.getOrNull() ?: url
     }
+}
+
+/** Feeds and pages come from arbitrary URLs, so don't read more than this into memory. */
+const val MAX_BODY_BYTES = 5L * 1024 * 1024
+
+/** Like [ResponseBody.string], but throws instead of reading more than [limit] bytes. */
+fun ResponseBody.stringWithLimit(limit: Long = MAX_BODY_BYTES): String {
+    val source = source()
+    if (source.request(limit + 1)) {
+        throw LookupException("That address returned more than ${limit / (1024 * 1024)} MB")
+    }
+    return source.buffer.readString(contentType()?.charset() ?: Charsets.UTF_8).removePrefix("\uFEFF")
 }
