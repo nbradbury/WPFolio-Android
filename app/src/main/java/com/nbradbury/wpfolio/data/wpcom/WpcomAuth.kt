@@ -44,7 +44,7 @@ class WpcomAuth(private val settings: SettingsStore) {
          * Public client ID from https://developer.wordpress.com/apps/. Client IDs aren't secret,
          * so it lives in source; sign-in is disabled while it's blank.
          */
-        const val CLIENT_ID = ""
+        const val CLIENT_ID = "151832"
 
         const val REDIRECT_SCHEME = "wpfolio"
         const val REDIRECT_HOST = "oauth"
