@@ -2,6 +2,12 @@
 
 A gallery-first reader for Android. It follows WordPress.com subscriptions and any RSS or Atom feed, and lets each post's featured image supply the colour.
 
+
+
+https://github.com/user-attachments/assets/13cdd08a-dd04-426a-b985-433bf520578b
+
+
+
 ## Setup
 
 1. Open the project in Android Studio, or build with `./gradlew :app:assembleDebug`.
