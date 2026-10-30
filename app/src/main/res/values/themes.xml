@@ -1,13 +1,13 @@
 <resources>
-    <style name="Theme.Folio" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.WpReadMe" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
     </style>
 
-    <style name="Theme.Folio.Splash" parent="Theme.SplashScreen.IconBackground">
+    <style name="Theme.WpReadMe.Splash" parent="Theme.SplashScreen.IconBackground">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <!-- The icon's paper-white book needs its blue ground to show on the light splash. -->
         <item name="windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
-        <item name="postSplashScreenTheme">@style/Theme.Folio</item>
+        <item name="postSplashScreenTheme">@style/Theme.WpReadMe</item>
     </style>
 </resources>

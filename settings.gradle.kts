@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Folio"
+rootProject.name = "WP-ReadMe"
 include(":app")

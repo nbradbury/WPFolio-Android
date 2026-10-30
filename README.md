@@ -1,16 +1,16 @@
-# Folio
+# WP-ReadMe
 
 A gallery-first reader for Android. It follows WordPress.com subscriptions and any RSS or Atom feed, and lets each post's featured image supply the colour.
 
 ## Setup
 
 1. Open the project in Android Studio, or build with `./gradlew :app:assembleDebug`.
-2. To enable WordPress.com sign-in, register an app at https://developer.wordpress.com/apps/ with the redirect URL `folio://oauth`, then add its credentials to `local.properties`:
+2. To enable WordPress.com sign-in, register an app at https://developer.wordpress.com/apps/ with the redirect URL `wpreadme://oauth`, then add its credentials to `local.properties`:
 
    ```
    WPCOM_CLIENT_ID=12345
    WPCOM_CLIENT_SECRET=...
-   WPCOM_REDIRECT_URI=folio://oauth
+   WPCOM_REDIRECT_URI=wpreadme://oauth
    ```
 
    Without these the app works in RSS-only mode and the sign-in button explains what's missing.

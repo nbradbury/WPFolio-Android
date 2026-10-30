@@ -19,11 +19,11 @@ if (localProp("WPCOM_CLIENT_ID").isBlank()) {
 }
 
 android {
-    namespace = "com.nbradbury.folio"
+    namespace = "com.nbradbury.wpreadme"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.nbradbury.folio"
+        applicationId = "com.nbradbury.wpreadme"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -31,7 +31,7 @@ android {
 
         buildConfigField("String", "WPCOM_CLIENT_ID", "\"${localProp("WPCOM_CLIENT_ID")}\"")
         buildConfigField("String", "WPCOM_CLIENT_SECRET", "\"${localProp("WPCOM_CLIENT_SECRET")}\"")
-        val redirectUri = localProp("WPCOM_REDIRECT_URI").ifBlank { "folio://oauth" }
+        val redirectUri = localProp("WPCOM_REDIRECT_URI").ifBlank { "wpreadme://oauth" }
         buildConfigField("String", "WPCOM_REDIRECT_URI", "\"$redirectUri\"")
         URI(redirectUri).let {
             manifestPlaceholders["oauthScheme"] = it.scheme
