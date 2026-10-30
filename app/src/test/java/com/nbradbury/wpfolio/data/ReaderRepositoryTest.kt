@@ -285,6 +285,7 @@ class ReaderRepositoryTest {
             sitePosts.map { it.copy(post = it.post.copy(siteId = site.id)) }
         var searchResults: List<SiteSearchResult> = emptyList()
         override suspend fun searchSites(query: String) = searchResults
+        override suspend fun videoPoster(guid: String): String? = null
         override suspend fun follow(url: String) { followed += url }
         override suspend fun unfollow(url: String) { unfollowed += url }
         override suspend fun setLiked(blogId: Long, postId: Long, liked: Boolean) = Unit

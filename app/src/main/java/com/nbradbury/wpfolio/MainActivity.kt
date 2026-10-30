@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.nbradbury.wpfolio.nav.FeedRoute
 import com.nbradbury.wpfolio.nav.OnboardingRoute
 import com.nbradbury.wpfolio.nav.WpFolioNavHost
+import com.nbradbury.wpfolio.ui.CustomTabUriHandler
 import com.nbradbury.wpfolio.ui.WebOnlyUriHandler
 import com.nbradbury.wpfolio.ui.theme.WpFolioTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +46,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val start by viewModel.start.collectAsStateWithLifecycle()
             WpFolioTheme {
-                val uriHandler = LocalUriHandler.current
-                val webOnly = remember(uriHandler) { WebOnlyUriHandler(uriHandler) }
+                // Links open in a Custom Tab, and only web links open at all.
+                val webOnly = remember { WebOnlyUriHandler(CustomTabUriHandler(this@MainActivity)) }
                 CompositionLocalProvider(LocalUriHandler provides webOnly) {
                     start?.let { WpFolioNavHost(startDestination = it) }
                 }

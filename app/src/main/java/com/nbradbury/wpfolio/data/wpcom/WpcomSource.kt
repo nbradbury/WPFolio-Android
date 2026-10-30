@@ -1,6 +1,7 @@
 package com.nbradbury.wpfolio.data.wpcom
 
 import com.nbradbury.wpfolio.data.db.SiteEntity
+import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 
 data class WpcomPage(val posts: List<WpcomPost>, val next: PageCursor?)
@@ -17,6 +18,7 @@ interface WpcomSource {
     suspend fun following(cursor: PageCursor?): WpcomPage
     suspend fun sitePosts(site: SiteEntity): List<WpcomPost>
     suspend fun searchSites(query: String): List<SiteSearchResult>
+    suspend fun videoPoster(guid: String): String?
     suspend fun follow(url: String)
     suspend fun unfollow(url: String)
     suspend fun setLiked(blogId: Long, postId: Long, liked: Boolean)
@@ -61,6 +63,11 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
 
     override suspend fun searchSites(query: String): List<SiteSearchResult> =
         WpcomMapper.searchResults(api.searchFeeds(query))
+
+    override suspend fun videoPoster(guid: String): String? {
+        val poster = api.video(guid)["poster"] as? JsonPrimitive ?: return null
+        return poster.content.takeIf { poster.isString && it.startsWith("https://") }
+    }
 
     override suspend fun follow(url: String) {
         api.follow(url)
