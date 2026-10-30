@@ -31,6 +31,15 @@ interface WpcomApi {
     @GET("rest/v1.2/read/feed/{feedId}/posts")
     suspend fun feedPosts(@Path("feedId") feedId: Long, @Query("number") number: Int = 20): JsonObject
 
+    /** Reader site search; works signed out too. */
+    @GET("rest/v1.1/read/feed/")
+    suspend fun searchFeeds(
+        @Query("q") query: String,
+        @Query("number") number: Int = 20,
+        @Query("sort") sort: String = "relevance",
+        @Query("meta") meta: String = "site",
+    ): JsonObject
+
     @POST("rest/v1.1/read/following/mine/new")
     suspend fun follow(@Query("url") url: String, @Query("source") source: String = "wpfolio"): JsonObject
 

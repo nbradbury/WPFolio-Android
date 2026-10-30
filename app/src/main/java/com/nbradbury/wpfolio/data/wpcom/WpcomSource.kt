@@ -16,6 +16,7 @@ interface WpcomSource {
     suspend fun subscriptions(): List<SiteEntity>
     suspend fun following(cursor: PageCursor?): WpcomPage
     suspend fun sitePosts(site: SiteEntity): List<WpcomPost>
+    suspend fun searchSites(query: String): List<SiteSearchResult>
     suspend fun follow(url: String)
     suspend fun unfollow(url: String)
     suspend fun setLiked(blogId: Long, postId: Long, liked: Boolean)
@@ -57,6 +58,9 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         }
         return WpcomMapper.posts(json, siteIdOverride = site.id)
     }
+
+    override suspend fun searchSites(query: String): List<SiteSearchResult> =
+        WpcomMapper.searchResults(api.searchFeeds(query))
 
     override suspend fun follow(url: String) {
         api.follow(url)
