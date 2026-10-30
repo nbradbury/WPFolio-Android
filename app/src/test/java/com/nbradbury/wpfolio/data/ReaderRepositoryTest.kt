@@ -200,6 +200,24 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `post IDs follow the list the post was opened from`() = runBlocking {
+        val newer = item("2", "Newer").copy(publishedAt = 2_000L)
+        repository.subscribe(preview(feedUrl = "https://a.test/feed", items = listOf(item("1", "Older"), newer)))
+        repository.subscribe(preview(feedUrl = "https://c.test/feed", items = listOf(item("3", "Other").copy(publishedAt = 3_000L))))
+        val feed = repository.feed().first()
+        val older = feed.single { it.title == "Older" }.id
+
+        assertEquals(listOf("Other", "Newer", "Older"), feed.map { it.title })
+        assertEquals(feed.map { it.id }, repository.postIds(PostList.FEED, older))
+        assertEquals(
+            feed.filter { it.siteId == "https://a.test/feed" }.map { it.id },
+            repository.postIds(PostList.SITE, older),
+        )
+        repository.toggleSaved(older)
+        assertEquals(listOf(older), repository.postIds(PostList.SAVED, older))
+    }
+
+    @Test
     fun `signing out removes WordPress_com sites but keeps local ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         settings.saveAccount(WpcomAccount("token", "Nick", null))

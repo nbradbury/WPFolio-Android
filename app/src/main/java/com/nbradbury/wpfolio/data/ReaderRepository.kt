@@ -61,6 +61,13 @@ class ReaderRepository(
     fun site(id: String): Flow<SiteEntity?> = sites.observe(id)
     fun sitePosts(id: String): Flow<List<PostEntity>> = posts.observeForSite(id)
 
+    /** IDs of the posts in [list], in display order; SITE uses the site of [postId]. */
+    suspend fun postIds(list: PostList, postId: String): List<String> = when (list) {
+        PostList.FEED -> feed().first()
+        PostList.SAVED -> saved.first()
+        PostList.SITE -> posts.get(postId)?.let { sitePosts(it.siteId).first() }.orEmpty()
+    }.map { it.id }
+
     /** Refreshes everything. Returns how many sources failed. */
     suspend fun refresh(): Int = refreshMutex.withLock {
         var failures = 0

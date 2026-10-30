@@ -27,6 +27,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,6 +81,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.nbradbury.wpfolio.container
+import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
@@ -103,7 +108,50 @@ private val SheetOverlap = 26.dp
 private const val BODY_SIZE = 17f
 
 @Composable
-fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
+fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
+    val repository = LocalContext.current.container.repository
+    // Captured once (and kept across rotation) so posts arriving in a refresh can't shift the pages.
+    var ids by rememberSaveable(postId, list, stateSaver = PostIdsSaver) { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(postId, list) {
+        if (ids == null) ids = repository.postIds(list, postId).takeIf { postId in it } ?: listOf(postId)
+    }
+    val pages = ids ?: run {
+        Box(Modifier.fillMaxSize().background(WpFolio.colors.articleBackground))
+        return
+    }
+    val pager = rememberPagerState(initialPage = pages.indexOf(postId).coerceAtLeast(0)) { pages.size }
+    var viewerOpen by remember { mutableStateOf(false) }
+    // Only the post on screen is composed, so neighbours aren't marked read until swiped to.
+    HorizontalPager(
+        state = pager,
+        key = { pages[it] },
+        // The photo viewer pages through images, so it gets the swipes while it's open.
+        userScrollEnabled = !viewerOpen,
+        modifier = Modifier.fillMaxSize(),
+    ) { page ->
+        ArticlePage(
+            postId = pages[page],
+            isCurrent = page == pager.settledPage,
+            onBack = onBack,
+            onOpenSite = onOpenSite,
+            onViewerOpenChange = { viewerOpen = it },
+        )
+    }
+}
+
+private val PostIdsSaver = Saver<List<String>?, ArrayList<String>>(
+    save = { it?.let(::ArrayList) },
+    restore = { it },
+)
+
+@Composable
+private fun ArticlePage(
+    postId: String,
+    isCurrent: Boolean,
+    onBack: () -> Unit,
+    onOpenSite: (String) -> Unit,
+    onViewerOpenChange: (Boolean) -> Unit,
+) {
     val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
@@ -135,7 +183,13 @@ fun ArticleScreen(postId: String, onBack: () -> Unit, onOpenSite: (String) -> Un
         derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < heroPx - statusBarPx }
     }
     val viewerOpen = viewerIndex != null
-    SystemBarIcons(lightIcons = overHero || colors.isDark || viewerOpen, lightNavIcons = colors.isDark || viewerOpen)
+    if (isCurrent) {
+        SystemBarIcons(
+            lightIcons = overHero || colors.isDark || viewerOpen,
+            lightNavIcons = colors.isDark || viewerOpen,
+        )
+    }
+    LaunchedEffect(viewerOpen, isCurrent) { if (isCurrent) onViewerOpenChange(viewerOpen) }
 
     // Featured image first, then the post's own images, in reading order.
     val images = remember(current.imageUrl, blocks) {

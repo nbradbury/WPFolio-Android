@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.nbradbury.wpfolio.container
+import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.ui.add.AddScreen
 import com.nbradbury.wpfolio.ui.article.ArticleScreen
 import com.nbradbury.wpfolio.ui.components.Tab
@@ -30,6 +31,7 @@ fun WpFolioNavHost(startDestination: Any) {
     val signIn = rememberSignIn()
     val onTab: (Tab) -> Unit = { nav.selectTab(it) }
     val openPost: (String) -> Unit = { nav.navigate(ArticleRoute(it)) }
+    val openSitePost: (String) -> Unit = { nav.navigate(ArticleRoute(it, PostList.SITE)) }
     val openSite: (String) -> Unit = { nav.navigate(SiteRoute(it)) }
 
     NavHost(
@@ -80,8 +82,10 @@ fun WpFolioNavHost(startDestination: Any) {
             )
         }
         composable<ArticleRoute> { entry ->
+            val route = entry.toRoute<ArticleRoute>()
             ArticleScreen(
-                postId = entry.toRoute<ArticleRoute>().postId,
+                postId = route.postId,
+                list = route.list,
                 onBack = { nav.popBackStack() },
                 onOpenSite = openSite,
             )
@@ -90,18 +94,21 @@ fun WpFolioNavHost(startDestination: Any) {
             SiteScreen(
                 siteId = entry.toRoute<SiteRoute>().siteId,
                 onBack = { nav.popBackStack() },
-                onOpenPost = openPost,
+                onOpenPost = openSitePost,
             )
         }
         composable<SitePreviewRoute> { entry ->
             SitePreviewScreen(
                 target = entry.toRoute<SitePreviewRoute>().toResult(),
                 onBack = { nav.popBackStack() },
-                onOpenPost = openPost,
+                onOpenPost = openSitePost,
             )
         }
         composable<SavedRoute> {
-            SavedScreen(onBack = { nav.popBackStack() }, onOpenPost = openPost)
+            SavedScreen(
+                onBack = { nav.popBackStack() },
+                onOpenPost = { nav.navigate(ArticleRoute(it, PostList.SAVED)) },
+            )
         }
     }
 }

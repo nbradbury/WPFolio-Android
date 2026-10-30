@@ -1,5 +1,6 @@
 package com.nbradbury.wpfolio.nav
 
+import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import kotlinx.serialization.Serializable
 
@@ -8,7 +9,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SitesRoute
 @Serializable data object SavedRoute
 @Serializable data class AddRoute(val fromOnboarding: Boolean = false)
-@Serializable data class ArticleRoute(val postId: String)
+@Serializable data class ArticleRoute(val postId: String, val list: PostList = PostList.FEED)
 @Serializable data class SiteRoute(val siteId: String)
 
 /** A site that may not be subscribed to yet, opened from Add's search results or URL preview. */
