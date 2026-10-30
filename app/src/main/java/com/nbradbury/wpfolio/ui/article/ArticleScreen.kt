@@ -116,7 +116,8 @@ private const val BODY_SIZE = 17f
 
 @Composable
 fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
-    val repository = LocalContext.current.container.repository
+    val context = LocalContext.current
+    val repository = context.container.repository
     // Captured once (and kept across rotation) so posts arriving in a refresh can't shift the pages.
     var ids by rememberSaveable(postId, list, stateSaver = PostIdsSaver) { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(postId, list) {
@@ -128,15 +129,13 @@ fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite
     }
     val pager = rememberPagerState(initialPage = pages.indexOf(postId).coerceAtLeast(0)) { pages.size }
     var viewerOpen by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val settings = context.container.settings
     // Null until loaded, so the hint isn't shown to readers who've already swiped.
     val swipeHintSeen by settings.swipeHintSeen.collectAsStateWithLifecycle(initialValue = null)
-    // Until the reader has swiped between posts, each post they open says that they can.
-    var hintShown by remember { mutableStateOf(false) }
+    // Until the reader has swiped between posts, each post they open says that they can. The
+    // effect only re-runs when the flag changes, so this shows once per post opened.
     LaunchedEffect(swipeHintSeen) {
-        if (swipeHintSeen == false && pages.size > 1 && !hintShown) {
-            hintShown = true
+        if (swipeHintSeen == false && pages.size > 1) {
             Toast.makeText(context, R.string.swipe_hint_toast, Toast.LENGTH_SHORT).show()
         }
     }
@@ -176,7 +175,7 @@ private fun ArticlePage(
     onOpenSite: (String) -> Unit,
     onViewerOpenChange: (Boolean) -> Unit,
 ) {
-    val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it) }
+    val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it.repository) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()
@@ -187,8 +186,7 @@ private fun ArticlePage(
 
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
-    val current = post
-    if (current == null) {
+    val current = post ?: run {
         Box(Modifier.fillMaxSize().background(colors.articleBackground))
         return
     }
@@ -238,7 +236,7 @@ private fun ArticlePage(
                     }
                 }
             } else {
-                items(loaded.size) { i -> BlockView(loaded[i], current.accentColor, isCurrent, onImageClick = openImage) }
+                items(loaded) { BlockView(it, current.accentColor, isCurrent, onImageClick = openImage) }
                 item(key = "footer") { ArticleFooter(current, summaryOnly = loaded.size < 3) }
             }
         }
@@ -350,19 +348,18 @@ private fun byline(post: PostEntity): String {
 @Composable
 private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
-    val size = BODY_SIZE
     val links = TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline))
     val padded = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 7.dp)
     when (block) {
         is Block.Paragraph -> Text(
             AnnotatedString.fromHtml(block.html, linkStyles = links),
-            style = body(size, lineHeight = 1.62f),
+            style = body(BODY_SIZE, lineHeight = 1.62f),
             color = colors.body,
             modifier = padded,
         )
         is Block.Heading -> Text(
             block.text,
-            style = ui(if (block.level <= 2) size * 1.3f else size * 1.12f, 600, lineHeight = 1.25f, tracking = -0.01f),
+            style = ui(BODY_SIZE * if (block.level <= 2) 1.3f else 1.12f, 600, lineHeight = 1.25f, tracking = -0.01f),
             color = colors.text,
             modifier = padded.padding(top = 10.dp),
         )
@@ -391,14 +388,15 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
             Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
             Text(
                 AnnotatedString.fromHtml(block.html, linkStyles = links),
-                style = body(size * 1.06f, lineHeight = 1.55f).copy(fontStyle = FontStyle.Italic),
+                style = body(BODY_SIZE * 1.06f, lineHeight = 1.55f).copy(fontStyle = FontStyle.Italic),
                 color = colors.body,
                 modifier = Modifier.padding(start = 16.dp),
             )
         }
         is Block.ListItem -> Row(padded.padding(start = (block.depth * 18).dp)) {
-            Text(block.marker, style = body(size, lineHeight = 1.62f), color = colors.textSecondary, modifier = Modifier.width(24.dp))
-            Text(AnnotatedString.fromHtml(block.html, linkStyles = links), style = body(size, lineHeight = 1.62f), color = colors.body)
+            val style = body(BODY_SIZE, lineHeight = 1.62f)
+            Text(block.marker, style = style, color = colors.textSecondary, modifier = Modifier.width(24.dp))
+            Text(AnnotatedString.fromHtml(block.html, linkStyles = links), style = style, color = colors.body)
         }
         is Block.Code -> Text(
             block.text,
@@ -470,7 +468,7 @@ private fun ProgressBar(listState: LazyListState, heroPx: Int, statusBarPx: Int,
     }
     Box(
         Modifier
-            .offsetY { y }
+            .offset { IntOffset(0, y) }
             .padding(horizontal = 26.dp)
             .fillMaxWidth()
             .height(3.dp)
@@ -481,7 +479,6 @@ private fun ProgressBar(listState: LazyListState, heroPx: Int, statusBarPx: Int,
     }
 }
 
-private fun Modifier.offsetY(y: () -> Int) = this.then(Modifier.offset { IntOffset(0, y()) })
 
 @Composable
 private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((String) -> Unit)?) {

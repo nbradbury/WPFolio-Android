@@ -2,7 +2,7 @@ package com.nbradbury.wpfolio.ui.article
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nbradbury.wpfolio.AppContainer
+import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.data.db.PostEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,14 +19,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ArticleViewModel(private val postId: String, private val container: AppContainer) : ViewModel() {
-    private val repository = container.repository
+class ArticleViewModel(private val postId: String, private val repository: ReaderRepository) : ViewModel() {
 
     val post: StateFlow<PostEntity?> = repository.post(postId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Posts opened from a site preview belong to no subscription, so there's no site screen. */
-    val siteSubscribed: StateFlow<Boolean> = repository.post(postId)
+    val siteSubscribed: StateFlow<Boolean> = post
         .filterNotNull()
         .map { it.siteId }
         .distinctUntilChanged()
@@ -34,7 +33,7 @@ class ArticleViewModel(private val postId: String, private val container: AppCon
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val blocks: StateFlow<List<Block>?> = repository.post(postId)
+    val blocks: StateFlow<List<Block>?> = post
         .filterNotNull()
         .map { Triple(it.contentHtml, it.imageUrl, it.url) }
         .distinctUntilChanged()

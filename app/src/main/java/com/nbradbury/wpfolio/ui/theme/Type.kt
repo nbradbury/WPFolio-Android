@@ -38,9 +38,9 @@ fun ui(
 )
 
 /** Reading text in Atkinson Hyperlegible Next. */
-fun body(size: Float, lineHeight: Float = 1.5f, weight: Int = 400) = TextStyle(
+fun body(size: Float, lineHeight: Float = 1.5f) = TextStyle(
     fontFamily = AtkinsonNext,
-    fontWeight = FontWeight(weight),
+    fontWeight = FontWeight.Normal,
     fontSize = size.sp,
     lineHeight = lineHeight.em,
 )

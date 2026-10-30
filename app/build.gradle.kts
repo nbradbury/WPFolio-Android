@@ -52,7 +52,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.browser)
@@ -61,12 +60,9 @@ dependencies {
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
-    implementation(libs.compose.ui.text.google.fonts)
-    implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
-    debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

@@ -95,23 +95,15 @@ object WpFolio {
 @Composable
 fun WpFolioTheme(content: @Composable () -> Unit) {
     val colors = if (isSystemInDarkTheme()) DarkColors else LightColors
-    val scheme = if (colors.isDark) {
-        darkColorScheme(
-            primary = colors.inverse, onPrimary = colors.onInverse,
-            background = colors.background, onBackground = colors.text,
-            surface = colors.background, onSurface = colors.text,
-            surfaceContainerLow = colors.sheet, surfaceContainer = colors.sheet,
-            onSurfaceVariant = colors.textSecondary, outline = colors.outline,
-        )
-    } else {
-        lightColorScheme(
-            primary = colors.inverse, onPrimary = colors.onInverse,
-            background = colors.background, onBackground = colors.text,
-            surface = colors.background, onSurface = colors.text,
-            surfaceContainerLow = colors.sheet, surfaceContainer = colors.sheet,
-            onSurfaceVariant = colors.textSecondary, outline = colors.outline,
-        )
-    }
+    // The builders default surfaceTint to primary but copy() doesn't, so it's set explicitly to keep
+    // elevated surfaces (menus, sheets) tinted as before.
+    val scheme = (if (colors.isDark) darkColorScheme() else lightColorScheme()).copy(
+        primary = colors.inverse, onPrimary = colors.onInverse, surfaceTint = colors.inverse,
+        background = colors.background, onBackground = colors.text,
+        surface = colors.background, onSurface = colors.text,
+        surfaceContainerLow = colors.sheet, surfaceContainer = colors.sheet,
+        onSurfaceVariant = colors.textSecondary, outline = colors.outline,
+    )
     CompositionLocalProvider(LocalWpFolioColors provides colors) {
         MaterialTheme(colorScheme = scheme, typography = WpFolioTypography, content = content)
     }

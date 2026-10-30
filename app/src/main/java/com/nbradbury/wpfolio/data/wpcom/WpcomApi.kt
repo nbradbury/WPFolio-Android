@@ -13,15 +13,15 @@ interface WpcomApi {
     @GET("rest/v1.2/read/following/mine")
     suspend fun subscriptions(
         @Query("page") page: Int,
-        @Query("number") number: Int = 200,
+        @Query("number") number: Int,
         @Query("meta") meta: String = "site,feed",
     ): JsonObject
 
     @GET("rest/v1.2/read/following")
     suspend fun following(
         @Query("number") number: Int,
-        @Query("page_handle") pageHandle: String? = null,
-        @Query("before") before: String? = null,
+        @Query("page_handle") pageHandle: String?,
+        @Query("before") before: String?,
         @Query("meta") meta: String = "site",
     ): JsonObject
 

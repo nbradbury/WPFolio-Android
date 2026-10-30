@@ -77,6 +77,7 @@ object WpcomMapper {
             val feed = element as? JsonObject ?: return@mapNotNull null
             val url = feed.string("URL") ?: return@mapNotNull null
             val site = feed.obj("meta")?.obj("data")?.obj("site")
+            val blogId = feed.long("blog_ID")?.takeIf { it > 0 }
             SiteSearchResult(
                 name = (feed.string("title") ?: site?.string("name"))?.unescape()?.takeIf { it.isNotBlank() }
                     ?: OkHttpRssSource.hostOf(url),
@@ -84,9 +85,9 @@ object WpcomMapper {
                 feedUrl = feed.string("subscribe_URL") ?: url,
                 description = site?.string("description")?.unescape().orEmpty(),
                 iconUrl = site?.obj("icon")?.string("img"),
-                isWordPress = (feed.long("blog_ID") ?: 0L) > 0,
+                isWordPress = blogId != null,
                 feedId = feed.long("feed_ID")?.takeIf { it > 0 },
-                blogId = feed.long("blog_ID")?.takeIf { it > 0 },
+                blogId = blogId,
             )
         }.distinctBy { it.feedUrl }
 

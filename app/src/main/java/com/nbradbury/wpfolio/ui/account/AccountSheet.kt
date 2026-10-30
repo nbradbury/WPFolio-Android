@@ -9,10 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CloudUpload
-import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -27,17 +27,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.nbradbury.wpfolio.AppContainer
+import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class AccountViewModel(private val container: AppContainer) : ViewModel() {
-    private val repository = container.repository
+class AccountViewModel(private val repository: ReaderRepository) : ViewModel() {
     val account = repository.account.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val localCount = repository.localSiteCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
@@ -62,7 +61,7 @@ fun AccountSheet(
     onOpenSaved: () -> Unit,
     onSignedOut: () -> Unit,
 ) {
-    val viewModel = wpFolioViewModel { AccountViewModel(it) }
+    val viewModel = wpFolioViewModel { AccountViewModel(it.repository) }
     val account by viewModel.account.collectAsStateWithLifecycle()
     val localCount by viewModel.localCount.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
@@ -77,7 +76,7 @@ fun AccountSheet(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AccountAvatar(current, onClick = {}, size = 44.dp)
+                    AccountAvatar(current, size = 44.dp)
                     Column {
                         Text(current.displayName.ifBlank { "WordPress.com" }, style = ui(16f, 600), color = colors.text)
                         Text("Signed in to WordPress.com", style = ui(13f, 500), color = colors.textSecondary)
