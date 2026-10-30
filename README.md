@@ -4,7 +4,10 @@ A gallery-first reader for Android. It follows WordPress.com subscriptions and a
 
 
 
-https://github.com/user-attachments/assets/13cdd08a-dd04-426a-b985-433bf520578b
+
+
+https://github.com/user-attachments/assets/a5e4b385-a1bf-4b20-9473-949f215abf01
+
 
 
 
