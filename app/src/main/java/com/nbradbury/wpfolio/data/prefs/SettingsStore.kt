@@ -30,6 +30,8 @@ data class WpcomAccount(
     fun isExpired(now: Long = System.currentTimeMillis()) = expiresAt != null && now >= expiresAt
 }
 
+data class PendingOAuth(val state: String, val codeVerifier: String)
+
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class SettingsStore(context: Context) {
@@ -81,11 +83,25 @@ class SettingsStore(context: Context) {
         }
     }
 
-    suspend fun setOAuthState(state: String?) {
-        store.edit { if (state != null) it[OAUTH_STATE] = state else it.remove(OAUTH_STATE) }
+    /** Saves the state and PKCE verifier for a sign-in in progress, surviving process death. */
+    suspend fun setPendingOAuth(pending: PendingOAuth?) {
+        store.edit {
+            if (pending != null) {
+                it[OAUTH_STATE] = pending.state
+                it[OAUTH_VERIFIER] = pending.codeVerifier
+            } else {
+                it.remove(OAUTH_STATE)
+                it.remove(OAUTH_VERIFIER)
+            }
+        }
     }
 
-    suspend fun oauthState(): String? = store.data.first()[OAUTH_STATE]
+    suspend fun pendingOAuth(): PendingOAuth? {
+        val prefs = store.data.first()
+        val state = prefs[OAUTH_STATE] ?: return null
+        val verifier = prefs[OAUTH_VERIFIER] ?: return null
+        return PendingOAuth(state, verifier)
+    }
 
     private companion object {
         val THEME = stringPreferencesKey("theme")
@@ -95,5 +111,6 @@ class SettingsStore(context: Context) {
         val AVATAR_URL = stringPreferencesKey("wpcom_avatar_url")
         val EXPIRES_AT = longPreferencesKey("wpcom_token_expires_at")
         val OAUTH_STATE = stringPreferencesKey("wpcom_oauth_state")
+        val OAUTH_VERIFIER = stringPreferencesKey("wpcom_oauth_verifier")
     }
 }

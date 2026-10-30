@@ -5,9 +5,7 @@ A gallery-first reader for Android. It follows WordPress.com subscriptions and a
 ## Setup
 
 1. Open the project in Android Studio, or build with `./gradlew :app:assembleDebug`.
-2. To enable WordPress.com sign-in, register an app at https://developer.wordpress.com/apps/ with the redirect URL `wpfolio://oauth`, then set its client ID in `WpcomAuth.CLIENT_ID`. Sign-in uses the OAuth implicit flow, so there's no client secret. Until the ID is set the app works in RSS-only mode.
-
-   Implicit-flow tokens can't be refreshed. When one expires the app signs out and asks you to sign in again.
+2. WordPress.com sign-in uses the OAuth authorization-code flow with PKCE, so there's no client secret. The app's public client ID is in `WpcomAuth.CLIENT_ID`, registered at https://developer.wordpress.com/apps/ as a Native app with the redirect URL `wpfolio://oauth`.
 
 ## How it works
 
