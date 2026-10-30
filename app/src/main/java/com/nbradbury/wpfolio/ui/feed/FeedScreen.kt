@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -62,16 +63,18 @@ import com.nbradbury.wpfolio.data.prefs.WpcomAccount
 import com.nbradbury.wpfolio.ui.account.AccountSheet
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
+import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.NavPill
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.relativeTime
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
-import com.nbradbury.wpfolio.ui.theme.WpFolio
+import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
+import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 
 private val HeroHeight = 480.dp
 private val PillClearance = 120.dp
@@ -94,7 +97,8 @@ fun FeedScreen(
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 
-    Box(Modifier.fillMaxSize().background(colors.background)) {
+    val pill = rememberHideOnScrollState()
+    Box(Modifier.fillMaxSize().background(colors.background).nestedScroll(pill.connection)) {
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
             when {
                 state.posts.isEmpty() -> EmptyFeed(loading = !state.loaded || refreshing, onAdd = { onTab(Tab.ADD) })
@@ -102,7 +106,7 @@ fun FeedScreen(
                 else -> MagazineFeed(state, onOpenPost, { showAccount = true }, viewModel::loadMore)
             }
         }
-        NavPill(Tab.HOME, onTab, Modifier.align(Alignment.BottomCenter))
+        HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) { NavPill(Tab.HOME, onTab) }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
     }
 

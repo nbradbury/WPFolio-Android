@@ -14,7 +14,6 @@ import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -29,10 +28,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.nbradbury.wpfolio.AppContainer
-import com.nbradbury.wpfolio.data.prefs.ReaderSettings
-import com.nbradbury.wpfolio.data.prefs.ThemeMode
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
-import com.nbradbury.wpfolio.ui.components.ThemePicker
 import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
@@ -44,11 +40,6 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
     private val repository = container.repository
     val account = repository.account.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val localCount = repository.localSiteCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-    val settings = container.settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderSettings())
-
-    fun setTheme(theme: ThemeMode) {
-        viewModelScope.launch { container.settings.setTheme(theme) }
-    }
 
     fun signOut() {
         viewModelScope.launch { repository.signOut() }
@@ -65,7 +56,6 @@ fun AccountSheet(onDismiss: () -> Unit, onSignIn: () -> Unit, onOpenSaved: () ->
     val viewModel = wpFolioViewModel { AccountViewModel(it) }
     val account by viewModel.account.collectAsStateWithLifecycle()
     val localCount by viewModel.localCount.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
     val context = LocalContext.current
 
@@ -104,9 +94,6 @@ fun AccountSheet(onDismiss: () -> Unit, onSignIn: () -> Unit, onOpenSaved: () ->
                     onDismiss()
                 }
             }
-            HorizontalDivider(Modifier.padding(vertical = 10.dp), color = colors.divider)
-            Text("Theme", style = ui(13f, 600), color = colors.textSecondary)
-            ThemePicker(settings.theme, viewModel::setTheme, Modifier.padding(top = 6.dp))
         }
     }
 }

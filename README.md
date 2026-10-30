@@ -12,7 +12,7 @@ A gallery-first reader for Android. It follows WordPress.com subscriptions and a
 - **Room is the source of truth.** Screens observe DAO flows. `ReaderRepository` writes into Room from WordPress.com (when signed in) or on-device RSS fetching (local subscriptions).
 - **Signed in:** every follow, WordPress or plain RSS, goes through the WordPress.com Reader API, so subscriptions sync across devices. Feeds added while signed out stay on-device until you move them from the account sheet.
 - **Accents:** `AccentSampler` samples each featured image with Palette and caches the colour and aspect ratio on the post.
-- **Theme:** light themes (Light, Paper) use the magazine feed; Dark uses the rail-and-list feed.
+- **Theme:** follows the system light/dark setting. Light uses the magazine feed; dark uses the rail-and-list feed.
 
 ## Tests
 
