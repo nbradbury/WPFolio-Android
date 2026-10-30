@@ -13,6 +13,7 @@ import com.nbradbury.wpfolio.data.rss.ParsedFeed
 import com.nbradbury.wpfolio.data.rss.ParsedItem
 import com.nbradbury.wpfolio.data.rss.RssSource
 import com.nbradbury.wpfolio.data.wpcom.PageCursor
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.data.wpcom.WpcomMe
 import com.nbradbury.wpfolio.data.wpcom.WpcomPage
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
@@ -136,6 +137,31 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `search marks sites that are already subscribed`() = runBlocking {
+        repository.subscribe(preview(feedUrl = "https://a.test/feed"))
+        wpcom.searchResults = listOf(searchResult("https://a.test/feed"), searchResult("https://b.test/feed"))
+        val results = repository.searchSites("test")
+        assertEquals("https://a.test/feed", results[0].subscribedSiteId)
+        assertNull(results[1].subscribedSiteId)
+    }
+
+    @Test
+    fun `signed in, subscribing to a search result follows its feed on WordPress_com`() = runBlocking {
+        settings.saveAccount(WpcomAccount("token", "Nick", null))
+        wpcom.subscriptions = listOf(wpcomSite("wp:9", feedUrl = "http://b.test/feed"))
+        assertEquals("wp:9", repository.subscribe(searchResult("http://b.test/feed")))
+        assertEquals(listOf("http://b.test/feed"), wpcom.followed)
+        assertTrue(rss.lookups.isEmpty())
+    }
+
+    @Test
+    fun `signed out, subscribing to a search result fetches the feed, trying https first`() = runBlocking {
+        val id = repository.subscribe(searchResult("http://b.test/feed"))
+        assertEquals(listOf("https://b.test/feed", "http://b.test/feed"), rss.lookups)
+        assertEquals(Origin.LOCAL, db.siteDao().get(id!!)!!.origin)
+    }
+
+    @Test
     fun `signing out removes WordPress_com sites but keeps local ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         settings.saveAccount(WpcomAccount("token", "Nick", null))
@@ -160,6 +186,11 @@ class ReaderRepositoryTest {
         name = "A", description = "", siteUrl = "https://a.test", feedUrl = feedUrl, isWordPress = false, items = items,
     )
 
+    private fun searchResult(feedUrl: String) = SiteSearchResult(
+        name = "B", siteUrl = feedUrl.substringBeforeLast("/feed"), feedUrl = feedUrl,
+        description = "", iconUrl = null, isWordPress = true,
+    )
+
     private fun wpcomSite(id: String, siteUrl: String = "https://wp.test", feedUrl: String = "$siteUrl/feed") = SiteEntity(
         id = id, origin = Origin.WPCOM, name = "WP", siteUrl = siteUrl, feedUrl = feedUrl, wpcomFeedId = 7,
     )
@@ -171,7 +202,12 @@ class ReaderRepositoryTest {
             if (fail) throw java.io.IOException("offline")
             return result
         }
-        override suspend fun lookup(input: String): SitePreview = error("unused")
+        val lookups = mutableListOf<String>()
+        override suspend fun lookup(input: String): SitePreview {
+            lookups += input
+            if (input.startsWith("https://")) throw java.io.IOException("no https")
+            return SitePreview("A", "", "https://a.test", input, isWordPress = false, items = emptyList())
+        }
     }
 
     private class FakeWpcom : WpcomSource {
@@ -187,6 +223,8 @@ class ReaderRepositoryTest {
         }
         override suspend fun following(cursor: PageCursor?) = WpcomPage(emptyList(), null)
         override suspend fun sitePosts(site: SiteEntity): List<WpcomPost> = emptyList()
+        var searchResults: List<SiteSearchResult> = emptyList()
+        override suspend fun searchSites(query: String) = searchResults
         override suspend fun follow(url: String) { followed += url }
         override suspend fun unfollow(url: String) { unfollowed += url }
         override suspend fun setLiked(blogId: Long, postId: Long, liked: Boolean) = Unit

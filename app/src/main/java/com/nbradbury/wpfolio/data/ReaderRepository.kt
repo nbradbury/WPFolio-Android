@@ -11,6 +11,7 @@ import com.nbradbury.wpfolio.data.rss.FetchResult
 import com.nbradbury.wpfolio.data.rss.ParsedItem
 import com.nbradbury.wpfolio.data.rss.RssSource
 import com.nbradbury.wpfolio.data.wpcom.PageCursor
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
 import com.nbradbury.wpfolio.data.wpcom.WpcomSource
 import com.nbradbury.wpfolio.data.wpcom.WpcomToken
@@ -111,18 +112,25 @@ class ReaderRepository(
         return LookupResult(preview, existing?.id)
     }
 
+    /** Searches WordPress.com Reader for sites, marking ones already subscribed to. */
+    suspend fun searchSites(query: String): List<SiteSearchResult> =
+        wpcom.searchSites(query).map { result ->
+            val existing = sites.findByUrl(result.feedUrl) ?: sites.findByUrl(result.siteUrl)
+            result.copy(subscribedSiteId = existing?.id)
+        }
+
+    /** Subscribes to a search result and returns the new site's id, if it could be identified. */
+    suspend fun subscribe(result: SiteSearchResult): String? {
+        if (isSignedIn()) return followOnWpcom(result.feedUrl, result.siteUrl)
+        // Search often returns http:// feed URLs, and cleartext is blocked, so try https first.
+        val secure = result.feedUrl.replaceFirst("http://", "https://")
+        val preview = runCatching { rss.lookup(secure) }.getOrElse { rss.lookup(result.feedUrl) }
+        return subscribe(preview)
+    }
+
     /** Subscribes and returns the new site's id, if it could be identified. */
     suspend fun subscribe(preview: SitePreview): String? {
-        if (isSignedIn()) {
-            wpcom.follow(preview.feedUrl)
-            val subscriptions = wpcom.subscriptions()
-            replaceWpcomSites(subscriptions)
-            val site = subscriptions.firstOrNull { sameUrl(it.feedUrl, preview.feedUrl) }
-                ?: subscriptions.firstOrNull { sameUrl(it.siteUrl, preview.siteUrl) }
-            site?.let { runCatching { mergeWpcom(wpcom.sitePosts(it)) } }
-            onPostsChanged()
-            return site?.id
-        }
+        if (isSignedIn()) return followOnWpcom(preview.feedUrl, preview.siteUrl)
         val site = SiteEntity(
             id = preview.feedUrl,
             origin = Origin.LOCAL,
@@ -136,6 +144,17 @@ class ReaderRepository(
         posts.merge(preview.items.map { it.toEntity(site) })
         onPostsChanged()
         return site.id
+    }
+
+    private suspend fun followOnWpcom(feedUrl: String, siteUrl: String): String? {
+        wpcom.follow(feedUrl)
+        val subscriptions = wpcom.subscriptions()
+        replaceWpcomSites(subscriptions)
+        val site = subscriptions.firstOrNull { sameUrl(it.feedUrl, feedUrl) }
+            ?: subscriptions.firstOrNull { sameUrl(it.siteUrl, siteUrl) }
+        site?.let { runCatching { mergeWpcom(wpcom.sitePosts(it)) } }
+        onPostsChanged()
+        return site?.id
     }
 
     suspend fun unsubscribe(siteId: String) {

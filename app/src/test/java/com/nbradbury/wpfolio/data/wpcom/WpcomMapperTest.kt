@@ -83,4 +83,32 @@ class WpcomMapperTest {
         val json = Json.parseToJsonElement("""{"posts":[{"ID":1,"site_ID":123,"title":"t","date":"2026-10-29T10:00:00Z"}]}""").jsonObject
         assertEquals("wp:456", WpcomMapper.posts(json, siteIdOverride = "wp:456").single().post.siteId)
     }
+
+    @Test
+    fun `maps Reader site search results`() {
+        val json = Json.parseToJsonElement(
+            """
+            {"feeds":[
+              {"URL":"https://tofino.wordpress.com","subscribe_URL":"http://tofino.wordpress.com","blog_ID":"11382936",
+               "title":"Tofino &amp; Photography","feed_ID":107723,
+               "meta":{"data":{"site":{"description":"Wildlife","icon":{"img":"https://i.test/b.png"}}}}},
+              {"URL":"https://plain.example","subscribe_URL":"https://plain.example/feed","blog_ID":"0","title":""},
+              {"title":"no url"}
+            ],"total":2}
+            """
+        ).jsonObject
+        val results = WpcomMapper.searchResults(json)
+        assertEquals(2, results.size)
+        with(results[0]) {
+            assertEquals("Tofino & Photography", name)
+            assertEquals("http://tofino.wordpress.com", feedUrl)
+            assertEquals("Wildlife", description)
+            assertEquals("https://i.test/b.png", iconUrl)
+            assertTrue(isWordPress)
+        }
+        with(results[1]) {
+            assertEquals("plain.example", name)
+            assertFalse(isWordPress)
+        }
+    }
 }

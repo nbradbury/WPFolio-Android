@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RssFeed
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,14 +61,17 @@ import com.nbradbury.wpfolio.AppContainer
 import com.nbradbury.wpfolio.data.LookupResult
 import com.nbradbury.wpfolio.data.rss.LookupException
 import com.nbradbury.wpfolio.data.rss.OkHttpRssSource
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.components.AccentImage
+import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.accentFor
-import com.nbradbury.wpfolio.ui.wpFolioViewModel
+import com.nbradbury.wpfolio.ui.components.displayUrl
 import com.nbradbury.wpfolio.ui.theme.Destructive
-import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
+import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
+import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,8 +84,12 @@ sealed interface AddState {
     data object Idle : AddState
     data object Looking : AddState
     data class Found(val result: LookupResult, val accent: Int?) : AddState
+    data class Results(val query: String, val results: List<SiteSearchResult>) : AddState
     data class Failed(val message: String) : AddState
 }
+
+/** Shorter queries are too vague to be worth a search. */
+private const val MIN_SEARCH_LENGTH = 2
 
 @OptIn(FlowPreview::class)
 class AddViewModel(private val container: AppContainer) : ViewModel() {
@@ -90,7 +99,8 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow<AddState>(AddState.Idle)
     val state = _state.asStateFlow()
 
-    private val _subscribing = MutableStateFlow(false)
+    /** Feed URL of the preview or search result being subscribed to, if any. */
+    private val _subscribing = MutableStateFlow<String?>(null)
     val subscribing = _subscribing.asStateFlow()
 
     init {
@@ -101,11 +111,28 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setQuery(value: String) {
         _query.value = value
-        if (OkHttpRssSource.normalizeUrl(value) == null) _state.value = AddState.Idle
+        if (value.isBlank()) _state.value = AddState.Idle
     }
 
+    /** URLs are looked up directly; anything else searches WordPress.com Reader for sites. */
     private suspend fun lookup(input: String) {
-        if (OkHttpRssSource.normalizeUrl(input) == null) return
+        val trimmed = input.trim()
+        when {
+            OkHttpRssSource.normalizeUrl(trimmed) != null -> lookupUrl(trimmed)
+            trimmed.length >= MIN_SEARCH_LENGTH -> search(trimmed)
+        }
+    }
+
+    private suspend fun search(query: String) {
+        _state.value = AddState.Looking
+        _state.value = try {
+            AddState.Results(query, container.repository.searchSites(query))
+        } catch (e: Exception) {
+            AddState.Failed("Couldn't search right now")
+        }
+    }
+
+    private suspend fun lookupUrl(input: String) {
         _state.value = AddState.Looking
         _state.value = try {
             val result = container.repository.lookup(input)
@@ -119,23 +146,34 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun subscribe(onDone: () -> Unit) {
-        val found = _state.value as? AddState.Found ?: return
-        if (_subscribing.value) return
+        val preview = (_state.value as? AddState.Found)?.result?.preview ?: return
+        subscribe(preview.feedUrl, onDone) { container.repository.subscribe(preview) }
+    }
+
+    fun subscribe(result: SiteSearchResult, onDone: () -> Unit) {
+        subscribe(result.feedUrl, onDone) { container.repository.subscribe(result) }
+    }
+
+    private fun subscribe(key: String, onDone: () -> Unit, action: suspend () -> Unit) {
+        if (_subscribing.value != null) return
         viewModelScope.launch {
-            _subscribing.value = true
+            _subscribing.value = key
             try {
-                container.repository.subscribe(found.result.preview)
+                action()
                 onDone()
             } catch (e: Exception) {
                 _state.value = AddState.Failed("Couldn't subscribe: ${e.message ?: "unknown error"}")
             } finally {
-                _subscribing.value = false
+                _subscribing.value = null
             }
         }
     }
 }
 
-/** 1g: paste any URL; the feed type is detected and previewed before subscribing. */
+/**
+ * 1g: paste any URL and the feed type is detected and previewed before subscribing, or type
+ * anything else to search WordPress.com Reader for sites.
+ */
 @Composable
 fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
     val viewModel = wpFolioViewModel { AddViewModel(it) }
@@ -164,12 +202,13 @@ fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Follow anything", style = ui(30f, 700, lineHeight = 1.05f, tracking = -0.03f), color = colors.text)
             Text(
-                "Paste the address of a WordPress site, an RSS or Atom feed, or any page that links to one.",
+                "Search for a site by name or topic, or paste the address of a WordPress site, " +
+                    "an RSS or Atom feed, or any page that links to one.",
                 style = body(14.5f, lineHeight = 1.45f),
                 color = colors.bodyMuted,
             )
         }
-        UrlField(
+        QueryField(
             value = query,
             onValueChange = viewModel::setQuery,
             loading = state is AddState.Looking,
@@ -178,7 +217,7 @@ fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
         when (val s = state) {
             is AddState.Failed -> Text(s.message, style = ui(13.5f, 500), color = Destructive)
             is AddState.Found -> {
-                PreviewCard(s, subscribing) { viewModel.subscribe(onSubscribed) }
+                PreviewCard(s, subscribing == s.result.preview.feedUrl) { viewModel.subscribe(onSubscribed) }
                 if (!s.result.preview.isWordPress) {
                     Text(
                         "Not a WordPress site, so posts open in full-text mode when the feed allows it.",
@@ -189,13 +228,19 @@ fun AddScreen(onClose: () -> Unit, onSubscribed: () -> Unit) {
                     )
                 }
             }
+            is AddState.Results -> SearchResults(s, subscribing) { viewModel.subscribe(it, onSubscribed) }
             else -> Unit
         }
     }
 }
 
 @Composable
-private fun UrlField(value: String, onValueChange: (String) -> Unit, loading: Boolean, modifier: Modifier = Modifier) {
+private fun QueryField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    loading: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val colors = WpFolio.colors
     val shape = RoundedCornerShape(16.dp)
     Row(
@@ -209,17 +254,30 @@ private fun UrlField(value: String, onValueChange: (String) -> Unit, loading: Bo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(Icons.Rounded.Link, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(22.dp))
+        Icon(
+            if (OkHttpRssSource.normalizeUrl(value) != null) Icons.Rounded.Link else Icons.Rounded.Search,
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(22.dp),
+        )
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text("example.com", style = ui(15.5f, 500), color = colors.textSecondary.copy(alpha = 0.6f))
+            if (value.isEmpty()) {
+                Text("Search or paste a URL", style = ui(15.5f, 500), color = colors.textSecondary.copy(alpha = 0.6f))
+            }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
                 textStyle = ui(15.5f, 500).copy(color = colors.text),
                 cursorBrush = SolidColor(colors.text),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
-                keyboardActions = KeyboardActions(onGo = { onValueChange(value.trim()) }),
+                // Text rather than Uri so search queries can contain spaces.
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Search,
+                ),
+                keyboardActions = KeyboardActions(onSearch = { onValueChange(value.trim()) }),
                 modifier = modifier.fillMaxWidth(),
             )
         }
@@ -309,6 +367,73 @@ private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onSubscribe
                         Text("Subscribe", style = ui(15f, 600), color = colors.onInverse)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResults(state: AddState.Results, subscribing: String?, onSubscribe: (SiteSearchResult) -> Unit) {
+    val colors = WpFolio.colors
+    if (state.results.isEmpty()) {
+        Text("No sites found for \u201c${state.query}\u201d", style = ui(14f, 500), color = colors.textSecondary)
+        return
+    }
+    Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        state.results.forEach { result ->
+            SearchResultRow(result, subscribing == result.feedUrl, enabled = subscribing == null) {
+                onSubscribe(result)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultRow(result: SiteSearchResult, subscribing: Boolean, enabled: Boolean, onSubscribe: () -> Unit) {
+    val colors = WpFolio.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        SiteAvatar(result.iconUrl, result.name, accentFor(null, result.feedUrl), 44.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(result.name, style = ui(15f, 600), color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                displayUrl(result.siteUrl),
+                style = ui(12.5f, 500),
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (result.description.isNotBlank()) {
+                Text(
+                    result.description,
+                    style = body(13f, lineHeight = 1.35f),
+                    color = colors.bodyMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        when {
+            result.subscribedSiteId != null -> Icon(
+                Icons.Rounded.Check,
+                contentDescription = "Subscribed",
+                tint = colors.textSecondary,
+                modifier = Modifier.size(22.dp),
+            )
+            subscribing -> CircularProgressIndicator(
+                Modifier.size(22.dp),
+                color = colors.textSecondary,
+                strokeWidth = 2.dp,
+            )
+            else -> Box(
+                Modifier
+                    .height(34.dp)
+                    .clip(CircleShape)
+                    .background(colors.inverse)
+                    .clickable(enabled = enabled, onClickLabel = "Subscribe to ${result.name}", onClick = onSubscribe)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Subscribe", style = ui(13f, 600), color = colors.onInverse)
             }
         }
     }

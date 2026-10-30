@@ -18,6 +18,17 @@ data class WpcomPost(val post: PostEntity, val liked: Boolean)
 
 data class WpcomMe(val displayName: String, val avatarUrl: String?)
 
+/** A site found by Reader search. [subscribedSiteId] is filled in by the repository. */
+data class SiteSearchResult(
+    val name: String,
+    val siteUrl: String,
+    val feedUrl: String,
+    val description: String,
+    val iconUrl: String?,
+    val isWordPress: Boolean,
+    val subscribedSiteId: String? = null,
+)
+
 /**
  * Maps WordPress.com Reader JSON to entities. The API is inconsistent about whether IDs are
  * numbers or strings, so everything is read leniently.
@@ -58,6 +69,22 @@ object WpcomMapper {
     }
 
     fun nextPageHandle(json: JsonObject): String? = json.string("next_page_handle")
+
+    fun searchResults(json: JsonObject): List<SiteSearchResult> =
+        json.array("feeds").mapNotNull { element ->
+            val feed = element as? JsonObject ?: return@mapNotNull null
+            val url = feed.string("URL") ?: return@mapNotNull null
+            val site = feed.obj("meta")?.obj("data")?.obj("site")
+            SiteSearchResult(
+                name = (feed.string("title") ?: site?.string("name"))?.unescape()?.takeIf { it.isNotBlank() }
+                    ?: OkHttpRssSource.hostOf(url),
+                siteUrl = url,
+                feedUrl = feed.string("subscribe_URL") ?: url,
+                description = site?.string("description")?.unescape().orEmpty(),
+                iconUrl = site?.obj("icon")?.string("img"),
+                isWordPress = (feed.long("blog_ID") ?: 0L) > 0,
+            )
+        }.distinctBy { it.feedUrl }
 
     fun posts(json: JsonObject, siteIdOverride: String? = null): List<WpcomPost> =
         json.array("posts").mapNotNull { (it as? JsonObject)?.let { post -> post(post, siteIdOverride) } }
