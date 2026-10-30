@@ -12,9 +12,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class FeedUiState(
     val posts: List<PostEntity> = emptyList(),
@@ -48,6 +50,7 @@ class FeedViewModel(private val repository: ReaderRepository) : ViewModel() {
             _refreshing.value = true
             try {
                 val failures = repository.refresh()
+                awaitPostsDelivered()
                 hasMore = true
                 if (failures > 0) _messages.send("Couldn't refresh $failures ${if (failures == 1) "site" else "sites"}")
             } catch (e: SessionExpiredException) {
@@ -56,6 +59,15 @@ class FeedViewModel(private val repository: ReaderRepository) : ViewModel() {
                 _refreshing.value = false
             }
         }
+    }
+
+    /**
+     * Room hands new rows to [state] a few milliseconds after the write returns. Without waiting,
+     * the screen briefly sees "not refreshing, no posts" and flashes the empty message.
+     */
+    private suspend fun awaitPostsDelivered() {
+        if (repository.feed().first().isEmpty()) return
+        withTimeoutOrNull(1_000) { state.first { it.posts.isNotEmpty() } }
     }
 
     fun loadMore() {

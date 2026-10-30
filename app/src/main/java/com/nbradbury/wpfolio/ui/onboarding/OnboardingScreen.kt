@@ -101,7 +101,7 @@ fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedI
         ) {
             Text(stringResource(R.string.app_name), style = ui(18f, 700, tracking = -0.02f), color = colors.text.copy(alpha = 0.9f))
             Text(
-                "Every blog you love, in full colour.",
+                "Every blog you love, in full color.",
                 style = ui(34f, 600, lineHeight = 1.06f, tracking = -0.03f),
                 color = colors.text,
             )
