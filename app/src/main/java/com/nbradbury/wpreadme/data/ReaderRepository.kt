@@ -13,6 +13,7 @@ import com.nbradbury.wpreadme.data.rss.RssSource
 import com.nbradbury.wpreadme.data.wpcom.PageCursor
 import com.nbradbury.wpreadme.data.wpcom.WpcomPost
 import com.nbradbury.wpreadme.data.wpcom.WpcomSource
+import com.nbradbury.wpreadme.data.wpcom.WpcomToken
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -61,7 +62,12 @@ class ReaderRepository(
     /** Refreshes everything. Returns how many sources failed. */
     suspend fun refresh(): Int = refreshMutex.withLock {
         var failures = 0
-        if (isSignedIn()) {
+        val account = settings.account.first()
+        if (account?.isExpired() == true) {
+            signOut()
+            throw SessionExpiredException()
+        }
+        if (account != null) {
             try {
                 syncWpcom()
             } catch (e: HttpException) {
@@ -160,10 +166,11 @@ class ReaderRepository(
         }
     }
 
-    suspend fun signIn(token: String) {
-        settings.saveAccount(WpcomAccount(token, displayName = "", avatarUrl = null))
+    suspend fun signIn(token: WpcomToken) {
+        val account = WpcomAccount(token.accessToken, displayName = "", avatarUrl = null, expiresAt = token.expiresAt)
+        settings.saveAccount(account)
         val me = wpcom.me()
-        settings.saveAccount(WpcomAccount(token, me.displayName, me.avatarUrl))
+        settings.saveAccount(account.copy(displayName = me.displayName, avatarUrl = me.avatarUrl))
         refresh()
     }
 

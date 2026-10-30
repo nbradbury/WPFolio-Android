@@ -21,12 +21,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- WordPress.com OAuth redirect -->
+            <!-- WordPress.com OAuth redirect; keep in sync with WpcomAuth.REDIRECT_URI -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="${oauthScheme}" android:host="${oauthHost}" />
+                <data android:scheme="wpreadme" android:host="oauth" />
             </intent-filter>
         </activity>
     </application>

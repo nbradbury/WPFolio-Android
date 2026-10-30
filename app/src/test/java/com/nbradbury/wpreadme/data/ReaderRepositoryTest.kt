@@ -128,6 +128,14 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `an expired implicit-flow token signs the user out without calling the API`() = runBlocking {
+        settings.saveAccount(WpcomAccount("token", "Nick", null, expiresAt = System.currentTimeMillis() - 1))
+        val error = runCatching { repository.refresh() }.exceptionOrNull()
+        assertTrue(error is SessionExpiredException)
+        assertNull(settings.account.first())
+    }
+
+    @Test
     fun `signing out removes WordPress_com sites but keeps local ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         settings.saveAccount(WpcomAccount("token", "Nick", null))

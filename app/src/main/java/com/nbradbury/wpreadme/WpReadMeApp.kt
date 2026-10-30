@@ -64,7 +64,7 @@ class AppContainer(context: Context) {
         .build()
         .create(WpcomApi::class.java)
 
-    val auth = WpcomAuth(http, settings)
+    val auth = WpcomAuth(settings)
 
     val accentSampler = AccentSampler(context, imageLoader, database.postDao(), appScope)
 

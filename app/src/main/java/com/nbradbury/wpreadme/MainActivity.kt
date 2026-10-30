@@ -64,8 +64,7 @@ class MainActivity : ComponentActivity() {
         if (!container.auth.isRedirect(uri)) return
         lifecycleScope.launch {
             try {
-                val token = container.auth.exchange(uri!!)
-                container.repository.signIn(token)
+                container.repository.signIn(container.auth.tokenFrom(uri!!))
             } catch (e: Exception) {
                 Toast.makeText(this@MainActivity, e.message ?: "Couldn't sign in", Toast.LENGTH_LONG).show()
             }

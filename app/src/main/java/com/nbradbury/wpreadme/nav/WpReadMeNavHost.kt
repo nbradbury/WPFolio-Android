@@ -110,7 +110,7 @@ fun rememberSignIn(): () -> Unit {
     return {
         val auth = context.container.auth
         if (!auth.isConfigured) {
-            Toast.makeText(context, "Add WPCOM_CLIENT_ID to local.properties to enable sign-in", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Set WpcomAuth.CLIENT_ID to enable sign-in", Toast.LENGTH_LONG).show()
         } else {
             scope.launch {
                 CustomTabsIntent.Builder().build().launchUrl(context, auth.authorizeUri())

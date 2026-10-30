@@ -1,21 +1,8 @@
-import java.net.URI
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-}
-
-val localProps = Properties().apply {
-    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-}
-
-fun localProp(key: String): String = localProps.getProperty(key).orEmpty()
-
-if (localProp("WPCOM_CLIENT_ID").isBlank()) {
-    logger.warn("WPCOM_CLIENT_ID is not set in local.properties; WordPress.com sign-in will be disabled.")
 }
 
 android {
@@ -28,15 +15,6 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1"
-
-        buildConfigField("String", "WPCOM_CLIENT_ID", "\"${localProp("WPCOM_CLIENT_ID")}\"")
-        buildConfigField("String", "WPCOM_CLIENT_SECRET", "\"${localProp("WPCOM_CLIENT_SECRET")}\"")
-        val redirectUri = localProp("WPCOM_REDIRECT_URI").ifBlank { "wpreadme://oauth" }
-        buildConfigField("String", "WPCOM_REDIRECT_URI", "\"$redirectUri\"")
-        URI(redirectUri).let {
-            manifestPlaceholders["oauthScheme"] = it.scheme
-            manifestPlaceholders["oauthHost"] = it.host
-        }
     }
 
     buildTypes {

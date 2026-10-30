@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -23,7 +24,11 @@ data class WpcomAccount(
     val token: String,
     val displayName: String,
     val avatarUrl: String?,
-)
+    /** Implicit-flow tokens can't be refreshed; once this passes the user has to sign in again. */
+    val expiresAt: Long? = null,
+) {
+    fun isExpired(now: Long = System.currentTimeMillis()) = expiresAt != null && now >= expiresAt
+}
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -43,6 +48,7 @@ class SettingsStore(context: Context) {
                 token = token,
                 displayName = prefs[DISPLAY_NAME].orEmpty(),
                 avatarUrl = prefs[AVATAR_URL],
+                expiresAt = prefs[EXPIRES_AT],
             )
         }
     }.distinctUntilChanged()
@@ -62,6 +68,7 @@ class SettingsStore(context: Context) {
             it[TOKEN] = account.token
             it[DISPLAY_NAME] = account.displayName
             if (account.avatarUrl != null) it[AVATAR_URL] = account.avatarUrl else it.remove(AVATAR_URL)
+            if (account.expiresAt != null) it[EXPIRES_AT] = account.expiresAt else it.remove(EXPIRES_AT)
         }
     }
 
@@ -70,6 +77,7 @@ class SettingsStore(context: Context) {
             it.remove(TOKEN)
             it.remove(DISPLAY_NAME)
             it.remove(AVATAR_URL)
+            it.remove(EXPIRES_AT)
         }
     }
 
@@ -85,6 +93,7 @@ class SettingsStore(context: Context) {
         val TOKEN = stringPreferencesKey("wpcom_token")
         val DISPLAY_NAME = stringPreferencesKey("wpcom_display_name")
         val AVATAR_URL = stringPreferencesKey("wpcom_avatar_url")
+        val EXPIRES_AT = longPreferencesKey("wpcom_token_expires_at")
         val OAUTH_STATE = stringPreferencesKey("wpcom_oauth_state")
     }
 }
