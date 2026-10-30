@@ -1,4 +1,4 @@
-package com.nbradbury.wpfolio.ui.article
+package com.nbradbury.wpfolio.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -48,7 +48,6 @@ import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.size.Size
-import com.nbradbury.wpfolio.ui.components.OverlayButton
 import com.nbradbury.wpfolio.ui.theme.ui
 
 data class ViewerImage(val url: String, val caption: String?)

@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +67,9 @@ import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.db.SiteEntity
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.OverlayButton
+import com.nbradbury.wpfolio.ui.components.PhotoViewer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
+import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.accentFor
 import com.nbradbury.wpfolio.ui.components.displayUrl
@@ -161,10 +164,15 @@ internal fun SiteLayout(
     val overCover by remember {
         derivedStateOf { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < coverPx - statusBarPx }
     }
-    SystemBarIcons(lightIcons = overCover || colors.isDark)
+    var viewerIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    val viewerOpen = viewerIndex != null
+    SystemBarIcons(lightIcons = overCover || colors.isDark || viewerOpen, lightNavIcons = colors.isDark || viewerOpen)
 
     val accent = posts.firstOrNull { it.imageUrl != null }?.accentColor ?: accentFor(null, site.id)
-    val covers = posts.mapNotNull { p -> p.imageUrl?.let { it to p.accentColor } }.take(3)
+    // The cover shows the first three of these, so a tapped tile opens the viewer at the same index.
+    val imagePosts = remember(posts) { posts.filter { it.imageUrl != null }.distinctBy { it.imageUrl } }
+    val covers = imagePosts.take(3).map { it.imageUrl!! to it.accentColor }
+    val viewerImages = remember(imagePosts) { imagePosts.map { ViewerImage(it.imageUrl!!, it.title) } }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyVerticalGrid(
@@ -175,7 +183,7 @@ internal fun SiteLayout(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) { Cover(covers, accent) }
+            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) { Cover(covers, accent) { viewerIndex = it } }
             item(key = "info", span = { GridItemSpan(maxLineSpan) }) {
                 SiteInfo(site, accent, subscribed, busy, onSubscriptionClick)
             }
@@ -196,17 +204,30 @@ internal fun SiteLayout(
             Modifier.statusBarsPadding().padding(start = 14.dp, top = 8.dp),
             onClick = onBack,
         )
+        viewerIndex?.let { index ->
+            PhotoViewer(viewerImages, index, onDismiss = { viewerIndex = null })
+        }
     }
 }
 
 @Composable
-private fun Cover(images: List<Pair<String, Color>>, accent: Color) {
+private fun Cover(images: List<Pair<String, Color>>, accent: Color, onImageClick: (Int) -> Unit) {
+    @Composable
+    fun Tile(index: Int, modifier: Modifier) {
+        val image = images.getOrNull(index)
+        val tappable = if (image == null) {
+            modifier
+        } else {
+            modifier.clickable(onClickLabel = "View image") { onImageClick(index) }
+        }
+        AccentImage(image?.first, image?.second ?: accent, tappable)
+    }
     Box(Modifier.fillMaxWidth().height(CoverHeight).background(accent)) {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            AccentImage(images.getOrNull(0)?.first, images.getOrNull(0)?.second ?: accent, Modifier.weight(1.4f).fillMaxHeight())
+            Tile(0, Modifier.weight(1.4f).fillMaxHeight())
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                AccentImage(images.getOrNull(1)?.first, images.getOrNull(1)?.second ?: accent, Modifier.weight(1f).fillMaxWidth())
-                AccentImage(images.getOrNull(2)?.first, images.getOrNull(2)?.second ?: accent, Modifier.weight(1f).fillMaxWidth())
+                Tile(1, Modifier.weight(1f).fillMaxWidth())
+                Tile(2, Modifier.weight(1f).fillMaxWidth())
             }
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.4f), 0.4f to Color.Transparent)))
@@ -228,7 +249,7 @@ private fun SiteInfo(
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SiteAvatar(
-            imageUrl = null,
+            imageUrl = site.iconUrl,
             name = site.name,
             accent = accent,
             size = AvatarSize,

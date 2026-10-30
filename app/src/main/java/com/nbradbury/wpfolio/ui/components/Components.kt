@@ -19,6 +19,10 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,11 +86,14 @@ fun SiteAvatar(
         bordered.size(size).clip(CircleShape).background(accent),
         contentAlignment = Alignment.Center,
     ) {
-        if (imageUrl != null) {
+        // Fall back to the initial when there's no image or it fails to load.
+        var failed by remember(imageUrl) { mutableStateOf(false) }
+        if (imageUrl != null && !failed) {
             AsyncImage(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onError = { failed = true },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
