@@ -56,6 +56,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +102,8 @@ import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
 import com.nbradbury.wpfolio.ui.wpFolioViewModel
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private val LightHeroHeight = 330.dp
@@ -123,21 +126,34 @@ fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite
     }
     val pager = rememberPagerState(initialPage = pages.indexOf(postId).coerceAtLeast(0)) { pages.size }
     var viewerOpen by remember { mutableStateOf(false) }
-    // Only the post on screen is composed, so neighbours aren't marked read until swiped to.
-    HorizontalPager(
-        state = pager,
-        key = { pages[it] },
-        // The photo viewer pages through images, so it gets the swipes while it's open.
-        userScrollEnabled = !viewerOpen,
-        modifier = Modifier.fillMaxSize(),
-    ) { page ->
-        ArticlePage(
-            postId = pages[page],
-            isCurrent = page == pager.settledPage,
-            onBack = onBack,
-            onOpenSite = onOpenSite,
-            onViewerOpenChange = { viewerOpen = it },
-        )
+    val settings = LocalContext.current.container.settings
+    // Null until loaded, so the hint can't flash for readers who've already swiped.
+    val swipeHintSeen by settings.swipeHintSeen.collectAsStateWithLifecycle(initialValue = null)
+    LaunchedEffect(pager) {
+        // The first settled page change means the reader has swiped between posts.
+        snapshotFlow { pager.settledPage }.drop(1).first()
+        settings.setSwipeHintSeen()
+    }
+    Box(Modifier.fillMaxSize()) {
+        // Only the post on screen is composed, so neighbours aren't marked read until swiped to.
+        HorizontalPager(
+            state = pager,
+            key = { pages[it] },
+            // The photo viewer pages through images, so it gets the swipes while it's open.
+            userScrollEnabled = !viewerOpen,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            ArticlePage(
+                postId = pages[page],
+                isCurrent = page == pager.settledPage,
+                onBack = onBack,
+                onOpenSite = onOpenSite,
+                onViewerOpenChange = { viewerOpen = it },
+            )
+        }
+        if (swipeHintSeen == false && pages.size > 1 && !viewerOpen) {
+            SwipeHint(hasPrevious = pager.currentPage > 0, hasNext = pager.currentPage < pages.lastIndex)
+        }
     }
 }
 

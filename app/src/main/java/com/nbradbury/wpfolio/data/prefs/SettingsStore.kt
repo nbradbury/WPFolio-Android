@@ -3,6 +3,7 @@ package com.nbradbury.wpfolio.data.prefs
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -28,6 +29,13 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class SettingsStore(context: Context) {
     private val store = context.applicationContext.dataStore
+
+    /** Whether the reader has swiped between posts, after which the swipe hint stays hidden. */
+    val swipeHintSeen: Flow<Boolean> = store.data.map { it[SWIPE_HINT_SEEN] == true }.distinctUntilChanged()
+
+    suspend fun setSwipeHintSeen() {
+        store.edit { it[SWIPE_HINT_SEEN] = true }
+    }
 
     val account: Flow<WpcomAccount?> = store.data.map { prefs ->
         prefs[TOKEN]?.let { token ->
@@ -87,5 +95,6 @@ class SettingsStore(context: Context) {
         val EXPIRES_AT = longPreferencesKey("wpcom_token_expires_at")
         val OAUTH_STATE = stringPreferencesKey("wpcom_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("wpcom_oauth_verifier")
+        val SWIPE_HINT_SEEN = booleanPreferencesKey("swipe_hint_seen")
     }
 }
