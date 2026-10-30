@@ -8,7 +8,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -18,8 +21,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.nbradbury.wpfolio.data.prefs.ReaderSettings
 import com.nbradbury.wpfolio.nav.FeedRoute
-import com.nbradbury.wpfolio.nav.WpFolioNavHost
 import com.nbradbury.wpfolio.nav.OnboardingRoute
+import com.nbradbury.wpfolio.nav.WpFolioNavHost
+import com.nbradbury.wpfolio.ui.WebOnlyUriHandler
 import com.nbradbury.wpfolio.ui.theme.WpFolioTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,7 +53,11 @@ class MainActivity : ComponentActivity() {
             val start by viewModel.start.collectAsStateWithLifecycle()
             val theme = settings?.theme ?: return@setContent
             WpFolioTheme(theme) {
-                start?.let { WpFolioNavHost(startDestination = it) }
+                val uriHandler = LocalUriHandler.current
+                val webOnly = remember(uriHandler) { WebOnlyUriHandler(uriHandler) }
+                CompositionLocalProvider(LocalUriHandler provides webOnly) {
+                    start?.let { WpFolioNavHost(startDestination = it) }
+                }
             }
         }
     }
