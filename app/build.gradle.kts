@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.nbradbury.wpreadme"
+    namespace = "com.nbradbury.wpfolio"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.nbradbury.wpreadme"
+        applicationId = "com.nbradbury.wpfolio"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
