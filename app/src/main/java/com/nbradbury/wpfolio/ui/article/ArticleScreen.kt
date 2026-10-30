@@ -82,9 +82,11 @@ import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.OverlayButton
+import com.nbradbury.wpfolio.ui.components.PhotoViewer
 import com.nbradbury.wpfolio.ui.components.PillButton
 import com.nbradbury.wpfolio.ui.components.PillContainer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
+import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
