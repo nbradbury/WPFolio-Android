@@ -98,6 +98,59 @@ class ArticleBlocksTest {
     }
 
     @Test
+    fun `keeps tables as rows of cells`() {
+        // Markup as WordPress's table block writes it.
+        val html = """
+            <figure class="wp-block-table"><table><thead><tr><th>Plan</th><th>Price</th></tr></thead>
+            <tbody><tr><td><strong>Personal</strong></td><td>${'$'}4</td></tr><tr><td>Business</td></tr></tbody>
+            </table><figcaption class="wp-element-caption">Monthly prices</figcaption></figure>
+            <table><tr><td>No header</td></tr></table>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                Block.Table(
+                    listOf(listOf("Plan", "Price"), listOf("<strong>Personal</strong>", "${'$'}4"), listOf("Business")),
+                    headerRows = 1,
+                    caption = "Monthly prices",
+                ),
+                Block.Table(listOf(listOf("No header")), headerRows = 0, caption = null),
+            ),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
+    fun `keeps quote citations and marks pullquotes`() {
+        val html = """
+            <blockquote class="wp-block-quote"><p>Plain quote</p><cite>Someone</cite></blockquote>
+            <figure class="wp-block-pullquote"><blockquote><p>Pulled out</p><cite>— <strong>Neal Stephenson</strong></cite></blockquote></figure>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                Block.Quote("Plain quote", citation = "Someone"),
+                Block.Quote("Pulled out", citation = "— Neal Stephenson", pull = true),
+            ),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
+    fun `drops footnote links that can't go anywhere`() {
+        // Markup as WordPress's footnotes block writes it.
+        val html = """
+            <p>A claim<sup class="fn"><a href="#fn-1" id="fn-1-link">1</a></sup>.</p>
+            <ol class="wp-block-footnotes"><li id="fn-1">The source. <a href="#fn-1-link" aria-label="Jump to footnote reference 1">↩︎</a></li></ol>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                Block.Paragraph("A claim<sup class=\"fn\">1</sup>."),
+                Block.ListItem("The source.", "1.", 0),
+            ),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
     fun `spots excerpts by how they end, not by length`() {
         fun excerpt(html: String) = ArticleBlocks.looksLikeExcerpt(ArticleBlocks.parse(html, "https://a.test/"))
         // WordPress summary feeds, and other common "there's more" endings.

@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -79,7 +80,9 @@ import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -100,6 +103,7 @@ import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
+import com.nbradbury.wpfolio.ui.feed.ListRow
 import com.nbradbury.wpfolio.ui.openInBrowser
 import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
@@ -131,6 +135,7 @@ fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite
         return
     }
     val pager = rememberPagerState(initialPage = pages.indexOf(postId).coerceAtLeast(0)) { pages.size }
+    val scope = rememberCoroutineScope()
     var viewerOpen by remember { mutableStateOf(false) }
     val settings = context.container.settings
     // Null until loaded, so the hint isn't shown to readers who've already swiped.
@@ -157,9 +162,11 @@ fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite
     ) { page ->
         ArticlePage(
             postId = pages[page],
+            nextPostId = pages.getOrNull(page + 1),
             isCurrent = page == pager.settledPage,
             onBack = onBack,
             onOpenSite = onOpenSite,
+            onNext = { scope.launch { pager.animateScrollToPage(page + 1) } },
             onViewerOpenChange = { viewerOpen = it },
         )
     }
@@ -173,9 +180,11 @@ private val PostIdsSaver = Saver<List<String>?, ArrayList<String>>(
 @Composable
 private fun ArticlePage(
     postId: String,
+    nextPostId: String?,
     isCurrent: Boolean,
     onBack: () -> Unit,
     onOpenSite: (String) -> Unit,
+    onNext: () -> Unit,
     onViewerOpenChange: (Boolean) -> Unit,
 ) {
     val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it.repository) }
@@ -249,6 +258,7 @@ private fun ArticlePage(
                 item(key = "footer") {
                     ArticleFooter(current, summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) })
                 }
+                nextPostId?.let { item(key = "next") { NextPost(it, onNext) } }
             }
         }
 
@@ -398,14 +408,36 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
             }
         }
         is Block.Gallery -> Gallery(block, accent, onImageClick)
-        is Block.Quote -> Row(padded.padding(vertical = 4.dp).height(IntrinsicSize.Min)) {
-            Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
-            Text(
-                AnnotatedString.fromHtml(block.html, linkStyles = links),
-                style = body(BODY_SIZE * 1.06f, lineHeight = 1.55f).copy(fontStyle = FontStyle.Italic),
-                color = colors.body,
-                modifier = Modifier.padding(start = 16.dp),
-            )
+        is Block.Quote -> if (block.pull) {
+            Column(padded.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.width(40.dp).height(3.dp).clip(CircleShape).background(accent))
+                Text(
+                    AnnotatedString.fromHtml(block.html, linkStyles = links),
+                    style = ui(BODY_SIZE * 1.3f, 600, lineHeight = 1.3f, tracking = -0.01f),
+                    color = colors.text,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+                block.citation?.let { Citation(it, Modifier.padding(top = 12.dp)) }
+            }
+        } else {
+            Row(padded.padding(vertical = 4.dp).height(IntrinsicSize.Min)) {
+                Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
+                Column(Modifier.padding(start = 16.dp)) {
+                    Text(
+                        AnnotatedString.fromHtml(block.html, linkStyles = links),
+                        style = body(BODY_SIZE * 1.06f, lineHeight = 1.55f).copy(fontStyle = FontStyle.Italic),
+                        color = colors.body,
+                    )
+                    block.citation?.let { Citation(it, Modifier.padding(top = 8.dp)) }
+                }
+            }
+        }
+        is Block.Table -> Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+            TableGrid(block, links, Modifier.padding(horizontal = 14.dp))
+            block.caption?.let {
+                Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
+            }
         }
         is Block.ListItem -> Row(padded.padding(start = (block.depth * 18).dp)) {
             val style = body(BODY_SIZE, lineHeight = 1.62f)
@@ -463,6 +495,94 @@ private fun Gallery(block: Block.Gallery, accent: Color, onImageClick: (String) 
 }
 
 private val GalleryGap = 6.dp
+
+/** The next post in the list, so moving on doesn't depend on knowing that posts swipe. */
+@Composable
+private fun NextPost(postId: String, onClick: () -> Unit) {
+    val repository = LocalContext.current.container.repository
+    val next by remember(postId) { repository.post(postId) }.collectAsStateWithLifecycle(initialValue = null)
+    val post = next ?: return
+    val colors = WpFolio.colors
+    Column(Modifier.padding(top = 8.dp)) {
+        HorizontalDivider(color = colors.divider)
+        Text(
+            "NEXT",
+            style = ui(12f, 600, tracking = 0.06f),
+            color = colors.textSecondary,
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp),
+        )
+        ListRow(post, onClick)
+    }
+}
+
+@Composable
+private fun Citation(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = ui(13.5f, 500), color = WpFolio.colors.textSecondary, modifier = modifier)
+}
+
+/**
+ * Columns are as wide as their widest cell, up to [MaxColumnWidth], and stretch to fill the
+ * width when there's room; wider tables scroll sideways, like code blocks.
+ */
+@Composable
+private fun TableGrid(table: Block.Table, links: TextLinkStyles, modifier: Modifier = Modifier) {
+    val colors = WpFolio.colors
+    val shape = RoundedCornerShape(12.dp)
+    val rows = table.rows.size
+    val columns = table.rows.maxOf { it.size }
+    Box(
+        modifier.fillMaxWidth().clip(shape).border(1.dp, colors.divider, shape).horizontalScroll(rememberScrollState()),
+        propagateMinConstraints = true,
+    ) {
+        Layout(
+            content = {
+                repeat(table.headerRows) { Box(Modifier.background(colors.divider)) }
+                table.rows.forEachIndexed { r, row ->
+                    repeat(columns) { c ->
+                        Text(
+                            AnnotatedString.fromHtml(row.getOrNull(c).orEmpty(), linkStyles = links),
+                            style = ui(14f, if (r < table.headerRows) 600 else 400, lineHeight = 1.4f),
+                            color = colors.body,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        )
+                    }
+                }
+                repeat(rows - 1) { Box(Modifier.background(colors.divider)) }
+            },
+        ) { measurables, constraints ->
+            val headers = measurables.take(table.headerRows)
+            val cells = measurables.subList(table.headerRows, table.headerRows + rows * columns)
+            val lines = measurables.takeLast(rows - 1)
+            val widths = IntArray(columns) { c ->
+                (0 until rows).maxOf { r -> cells[r * columns + c].maxIntrinsicWidth(Constraints.Infinity) }
+                    .coerceAtMost(MaxColumnWidth.roundToPx())
+            }
+            val spare = constraints.minWidth - widths.sum()
+            if (spare > 0) for (c in widths.indices) widths[c] += spare / columns + if (c < spare % columns) 1 else 0
+            val placed = cells.mapIndexed { i, cell -> cell.measure(Constraints.fixedWidth(widths[i % columns])) }
+            val heights = IntArray(rows) { r -> (0 until columns).maxOf { placed[r * columns + it].height } }
+            val width = widths.sum()
+            val line = 1.dp.roundToPx()
+            val headerBackgrounds = headers.mapIndexed { r, header -> header.measure(Constraints.fixed(width, heights[r])) }
+            val dividers = lines.map { it.measure(Constraints.fixed(width, line)) }
+            layout(width, heights.sum()) {
+                var y = 0
+                for (r in 0 until rows) {
+                    headerBackgrounds.getOrNull(r)?.place(0, y)
+                    var x = 0
+                    for (c in 0 until columns) {
+                        placed[r * columns + c].place(x, y)
+                        x += widths[c]
+                    }
+                    y += heights[r]
+                    dividers.getOrNull(r)?.place(0, y - line)
+                }
+            }
+        }
+    }
+}
+
+private val MaxColumnWidth = 240.dp
 
 @Composable
 private fun ArticleFooter(post: PostEntity, summaryOnly: Boolean) {
