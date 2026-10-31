@@ -98,6 +98,20 @@ class ArticleBlocksTest {
     }
 
     @Test
+    fun `spots excerpts by how they end, not by length`() {
+        fun excerpt(html: String) = ArticleBlocks.looksLikeExcerpt(ArticleBlocks.parse(html, "https://a.test/"))
+        // WordPress summary feeds, and other common "there's more" endings.
+        assertEquals(true, excerpt("<p>The first fifty-five words of the post [&#8230;]</p>"))
+        assertEquals(true, excerpt("<p>Opening lines...</p>"))
+        assertEquals(true, excerpt("""<p>Opening lines. <a href="/post">Continue reading &rarr;</a></p>"""))
+        assertEquals(true, excerpt(""))
+        // Short complete posts aren't summaries.
+        assertEquals(false, excerpt("<p>This post has a code block.</p><pre>code()</pre>"))
+        assertEquals(false, excerpt("<p>Short… but complete.</p>"))
+        assertEquals(false, excerpt("""<p>Caption above</p><img src="https://a.test/1.jpg">"""))
+    }
+
+    @Test
     fun `turns WordPress video embeds into playable blocks`() {
         // Markup as it appears in WordPress.com feeds.
         val html = """
