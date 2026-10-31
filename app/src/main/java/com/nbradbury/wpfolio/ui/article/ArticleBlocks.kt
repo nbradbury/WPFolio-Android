@@ -13,7 +13,10 @@ sealed interface Block {
     }
     /** A WordPress gallery, shown as a grid of [columns]. [caption] belongs to the whole gallery. */
     data class Gallery(val images: List<Image>, val columns: Int, val caption: String?) : Block
-    data class Quote(val html: String) : Block
+    /** [citation] is the quote's attribution; [pull] marks a pullquote, which stands apart from the text. */
+    data class Quote(val html: String, val citation: String? = null, val pull: Boolean = false) : Block
+    /** Rows of cells as inline HTML; the first [headerRows] rows are headings. */
+    data class Table(val rows: List<List<String>>, val headerRows: Int, val caption: String?) : Block
     data class ListItem(val html: String, val marker: String, val depth: Int) : Block
     data class Code(val text: String) : Block
     data object Rule : Block
@@ -109,6 +112,9 @@ object ArticleBlocks {
     fun parse(html: String, baseUrl: String): List<Block> {
         if (html.isBlank()) return emptyList()
         val body = Jsoup.parseBodyFragment(html, baseUrl).body()
+        // In-page links (footnote markers, their back-links) have nowhere to go in a native view.
+        body.select(".wp-block-footnotes a[href^=#]").remove()
+        body.select("a[href^=#]").unwrap()
         return mutableListOf<Block>().also { walk(body, it, depth = 0) }
     }
 
@@ -151,8 +157,13 @@ object ArticleBlocks {
             }
             "img" -> image(el, el.attr("alt").takeIf { it.isNotBlank() && it.length < 200 })?.let { out += it }
             "iframe", "video" -> media(el)?.let { out += it }
+            "table" -> table(el, caption = null)?.let { out += it }
             "figure" -> {
                 val caption = el.selectFirst("figcaption")?.text()?.takeIf { it.isNotBlank() }
+                el.selectFirst("table")?.let { table ->
+                    table(table, caption)?.let { out += it }
+                    return
+                }
                 val img = el.selectFirst("img")?.let { image(it, caption) }
                 // An embed WordPress couldn't render leaves just its URL in the wrapper.
                 val embedUrl = el.takeIf { it.hasClass("wp-block-embed") && it.selectFirst(MEDIA) == null }
@@ -166,9 +177,13 @@ object ArticleBlocks {
                 }
             }
             "blockquote" -> {
+                val cites = el.children().filter { it.tagName() == "cite" }
+                val citation = cites.joinToString(" ") { it.text() }.takeIf { it.isNotBlank() }
+                cites.forEach { it.remove() }
                 val paragraphs = el.select("p")
                 val html = if (paragraphs.isEmpty()) el.html() else paragraphs.joinToString("<br><br>") { it.html() }
-                if (Jsoup.parse(html).text().isNotBlank()) out += Block.Quote(html.trim())
+                val pull = el.hasClass("wp-block-pullquote") || el.parent()?.hasClass("wp-block-pullquote") == true
+                if (Jsoup.parse(html).text().isNotBlank()) out += Block.Quote(html.trim(), citation, pull)
             }
             "ul", "ol" -> el.children().filter { it.tagName() == "li" }.forEachIndexed { i, li ->
                 val nested = li.children().filter { it.tagName() == "ul" || it.tagName() == "ol" }
@@ -199,6 +214,17 @@ object ArticleBlocks {
         val declared = el.classNames().firstNotNullOfOrNull { GALLERY_COLUMNS.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
         val columns = minOf(declared ?: MAX_GALLERY_COLUMNS, MAX_GALLERY_COLUMNS, images.size).coerceAtLeast(1)
         out += Block.Gallery(images, columns, caption)
+    }
+
+    private fun table(table: Element, caption: String?): Block.Table? {
+        val rows = table.select("tr").map { row ->
+            row.children().filter { it.tagName() == "td" || it.tagName() == "th" }.map { it.html().trim() }
+        }.filter { it.isNotEmpty() }
+        if (rows.isEmpty()) return null
+        // Header rows are those in <thead>, or a first row made only of <th>.
+        val headerRows = table.select("thead tr").size.takeIf { it > 0 }
+            ?: if (table.selectFirst("tr")?.children()?.all { it.tagName() == "th" } == true) 1 else 0
+        return Block.Table(rows, headerRows, caption)
     }
 
     private fun media(el: Element): Block? {
