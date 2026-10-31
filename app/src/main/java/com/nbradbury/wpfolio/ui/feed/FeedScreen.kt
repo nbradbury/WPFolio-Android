@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nbradbury.wpfolio.R
+import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
 import com.nbradbury.wpfolio.ui.account.AccountSheet
@@ -89,7 +90,7 @@ fun FeedScreen(
     onOpenPost: (String) -> Unit,
     onTab: (Tab) -> Unit,
     onSignIn: () -> Unit,
-    onOpenSaved: () -> Unit,
+    onOpenList: (PostList) -> Unit,
     onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { FeedViewModel(it.repository) }
@@ -134,9 +135,9 @@ fun FeedScreen(
         AccountSheet(
             onDismiss = { showAccount = false },
             onSignIn = onSignIn,
-            onOpenSaved = {
+            onOpenList = {
                 showAccount = false
-                onOpenSaved()
+                onOpenList(it)
             },
             onSignedOut = onSignedOut,
         )

@@ -18,7 +18,7 @@ import com.nbradbury.wpfolio.ui.article.ArticleScreen
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.feed.FeedScreen
 import com.nbradbury.wpfolio.ui.onboarding.OnboardingScreen
-import com.nbradbury.wpfolio.ui.saved.SavedScreen
+import com.nbradbury.wpfolio.ui.postlist.PostListScreen
 import com.nbradbury.wpfolio.ui.site.SitePreviewScreen
 import com.nbradbury.wpfolio.ui.site.SiteScreen
 import com.nbradbury.wpfolio.ui.sites.SitesScreen
@@ -51,7 +51,7 @@ fun WpFolioNavHost(startDestination: Any) {
                 onOpenPost = openPost,
                 onTab = onTab,
                 onSignIn = signIn,
-                onOpenSaved = { nav.navigate(SavedRoute) },
+                onOpenList = { nav.navigate(PostListRoute(it)) },
                 // Back to the first-run screen with nothing behind it. If on-device RSS
                 // subscriptions remain, onboarding forwards straight back to the feed.
                 onSignedOut = {
@@ -103,10 +103,12 @@ fun WpFolioNavHost(startDestination: Any) {
                 onOpenPost = openSitePost,
             )
         }
-        composable<SavedRoute> {
-            SavedScreen(
+        composable<PostListRoute> { entry ->
+            val list = entry.toRoute<PostListRoute>().list
+            PostListScreen(
+                list = list,
                 onBack = { nav.popBackStack() },
-                onOpenPost = { nav.navigate(ArticleRoute(it, PostList.SAVED)) },
+                onOpenPost = { nav.navigate(ArticleRoute(it, list)) },
             )
         }
     }

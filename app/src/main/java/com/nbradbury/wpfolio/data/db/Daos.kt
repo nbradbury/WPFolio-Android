@@ -66,6 +66,9 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE isSaved = 1 ORDER BY publishedAt DESC")
     fun observeSaved(): Flow<List<PostEntity>>
 
+    @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY publishedAt DESC")
+    fun observeLiked(): Flow<List<PostEntity>>
+
     @Query("SELECT COUNT(*) FROM posts WHERE isRead = 0 AND siteId IN (SELECT id FROM sites)")
     fun observeUnreadCount(): Flow<Int>
 
@@ -146,11 +149,11 @@ interface PostDao {
     @Query("UPDATE posts SET isLiked = :liked WHERE id = :id")
     suspend fun setLiked(id: String, liked: Boolean)
 
-    @Query("DELETE FROM posts WHERE siteId = :siteId AND isSaved = 0")
+    @Query("DELETE FROM posts WHERE siteId = :siteId AND isSaved = 0 AND isLiked = 0")
     suspend fun deleteForSite(siteId: String)
 
-    /** Removes unsaved posts left behind by previewing sites that were never subscribed to. */
-    @Query("DELETE FROM posts WHERE isSaved = 0 AND siteId NOT IN (SELECT id FROM sites)")
+    /** Removes posts left behind by previewing sites that were never subscribed to, unless saved or liked. */
+    @Query("DELETE FROM posts WHERE isSaved = 0 AND isLiked = 0 AND siteId NOT IN (SELECT id FROM sites)")
     suspend fun deleteOrphans()
 
     @Query("DELETE FROM posts WHERE siteId LIKE 'wp:%' AND isSaved = 0")
