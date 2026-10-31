@@ -66,7 +66,8 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE isSaved = 1 ORDER BY publishedAt DESC")
     fun observeSaved(): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY publishedAt DESC")
+    /** Most recently liked first; likes without a time sort by when the post was published. */
+    @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY COALESCE(likedAt, publishedAt) DESC")
     fun observeLiked(): Flow<List<PostEntity>>
 
     @Query("SELECT COUNT(*) FROM posts WHERE isRead = 0 AND siteId IN (SELECT id FROM sites)")
@@ -88,7 +89,8 @@ interface PostDao {
             publishedAt = CASE WHEN :publishedAt = 0 THEN publishedAt ELSE :publishedAt END,
             accent = CASE WHEN imageUrl IS :imageUrl THEN accent ELSE NULL END,
             imageRatio = CASE WHEN imageUrl IS :imageUrl THEN imageRatio ELSE NULL END,
-            isLiked = COALESCE(:liked, isLiked)
+            isLiked = COALESCE(:liked, isLiked),
+            likedAt = CASE WHEN :liked IS NULL THEN likedAt WHEN :liked THEN COALESCE(:likedAt, likedAt) ELSE NULL END
         WHERE id = :id
         """
     )
@@ -104,6 +106,7 @@ interface PostDao {
         publishedAt: Long,
         wordCount: Int,
         liked: Boolean?,
+        likedAt: Long?,
     )
 
     /**
@@ -116,7 +119,7 @@ interface PostDao {
         val now = System.currentTimeMillis()
         for (post in posts) {
             val dated = if (post.publishedAt == 0L) post.copy(publishedAt = now) else post
-            if (insertIgnore(dated) == -1L) {
+            if (insertIgnore(dated.copy(isLiked = remoteLikes[post.id] ?: post.isLiked)) == -1L) {
                 updateContent(
                     id = post.id,
                     siteName = post.siteName,
@@ -129,6 +132,7 @@ interface PostDao {
                     publishedAt = post.publishedAt,
                     wordCount = post.wordCount,
                     liked = remoteLikes[post.id],
+                    likedAt = post.likedAt,
                 )
             }
         }
@@ -146,8 +150,14 @@ interface PostDao {
     @Query("UPDATE posts SET isSaved = :saved WHERE id = :id")
     suspend fun setSaved(id: String, saved: Boolean)
 
-    @Query("UPDATE posts SET isLiked = :liked WHERE id = :id")
-    suspend fun setLiked(id: String, liked: Boolean)
+    @Query("UPDATE posts SET isLiked = :liked, likedAt = :likedAt WHERE id = :id")
+    suspend fun setLiked(id: String, liked: Boolean, likedAt: Long?)
+
+    /** Clears likes on WordPress.com posts that aren't in [likedIds], the user's full list of likes. */
+    @Query(
+        "UPDATE posts SET isLiked = 0, likedAt = NULL WHERE isLiked = 1 AND wpcomPostId IS NOT NULL AND id NOT IN (:likedIds)"
+    )
+    suspend fun unlikeAllExcept(likedIds: List<String>)
 
     @Query("DELETE FROM posts WHERE siteId = :siteId AND isSaved = 0 AND isLiked = 0")
     suspend fun deleteForSite(siteId: String)

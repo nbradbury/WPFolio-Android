@@ -12,6 +12,18 @@ import org.junit.Test
 class WpcomMapperTest {
 
     @Test
+    fun `reads when liked posts were liked, and pages by the oldest`() {
+        val json = Json.parseToJsonElement(
+            """
+            {"date_range":{"before":"2026-10-31T13:00:44+00:00","after":"2026-10-21T16:17:40+00:00"},
+             "posts":[{"ID":1,"site_ID":5,"URL":"https://b.test/1","date_liked":"2026-10-21T16:17:40+00:00"}]}
+            """
+        ).jsonObject
+        assertEquals("2026-10-21T16:17:40+00:00", WpcomMapper.oldestLike(json))
+        assertEquals(java.time.Instant.parse("2026-10-21T16:17:40Z").toEpochMilli(), WpcomMapper.posts(json).single().post.likedAt)
+    }
+
+    @Test
     fun `maps subscriptions with string IDs and site or feed meta`() {
         val json = Json.parseToJsonElement(
             """

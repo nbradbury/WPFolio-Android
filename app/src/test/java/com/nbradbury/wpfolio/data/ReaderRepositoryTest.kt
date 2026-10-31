@@ -15,6 +15,7 @@ import com.nbradbury.wpfolio.data.rss.ParsedItem
 import com.nbradbury.wpfolio.data.rss.RssSource
 import com.nbradbury.wpfolio.data.wpcom.PageCursor
 import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
+import com.nbradbury.wpfolio.data.wpcom.WpcomLikes
 import com.nbradbury.wpfolio.data.wpcom.WpcomMe
 import com.nbradbury.wpfolio.data.wpcom.WpcomPage
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
@@ -221,6 +222,52 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `syncing likes adds posts liked elsewhere and clears likes removed elsewhere`() = runBlocking {
+        repository.subscribe(preview(feedUrl = "https://a.test/feed", items = listOf(item("1", "Local"))))
+        repository.toggleLiked(repository.feed().first().single().id)
+        settings.saveAccount(WpcomAccount("token", "Nick", null))
+        db.postDao().merge(listOf(wpcomPost("wps:5:1", "Unliked on the web").copy(isLiked = true)))
+        wpcom.likes = WpcomLikes(listOf(WpcomPost(wpcomPost("wps:5:2", "Liked on the web"), liked = true)), complete = true)
+
+        repository.syncLiked()
+
+        val liked = repository.liked.first()
+        assertEquals(setOf("Local", "Liked on the web"), liked.map { it.title }.toSet())
+        // Fetched likes aren't new to the user, so they don't count as unread.
+        assertTrue(liked.single { it.id == "wps:5:2" }.isRead)
+    }
+
+    @Test
+    fun `liked posts are ordered by when they were liked`() = runBlocking {
+        settings.saveAccount(WpcomAccount("token", "Nick", null))
+        wpcom.likes = WpcomLikes(
+            listOf(
+                WpcomPost(wpcomPost("wps:5:1", "Old post").copy(publishedAt = 1L, likedAt = 3_000L), liked = true),
+                WpcomPost(wpcomPost("wps:5:2", "New post").copy(publishedAt = 2_000L, likedAt = 100L), liked = true),
+            ),
+            complete = true,
+        )
+        repository.syncLiked()
+        assertEquals(listOf("Old post", "New post"), repository.liked.first().map { it.title })
+
+        // Liking again puts it back on top.
+        repository.toggleLiked("wps:5:2")
+        repository.toggleLiked("wps:5:2")
+        assertEquals(listOf("New post", "Old post"), repository.liked.first().map { it.title })
+    }
+
+    @Test
+    fun `a partial list of likes doesn't clear any`() = runBlocking {
+        settings.saveAccount(WpcomAccount("token", "Nick", null))
+        db.postDao().merge(listOf(wpcomPost("wps:5:1", "Older like").copy(isLiked = true)))
+        wpcom.likes = WpcomLikes(listOf(WpcomPost(wpcomPost("wps:5:2", "Newer like"), liked = true)), complete = false)
+
+        repository.syncLiked()
+
+        assertEquals(setOf("Older like", "Newer like"), repository.liked.first().map { it.title }.toSet())
+    }
+
+    @Test
     fun `signing out removes WordPress_com sites but keeps local ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         settings.saveAccount(WpcomAccount("token", "Nick", null))
@@ -232,6 +279,11 @@ class ReaderRepositoryTest {
         assertEquals(1, repository.siteCount.first())
         assertFalse(db.siteDao().getByOrigin(Origin.LOCAL).isEmpty())
     }
+
+    private fun wpcomPost(id: String, title: String) = PostEntity(
+        id = id, siteId = "wp:9", siteName = "B", title = title, excerpt = "", contentHtml = "",
+        url = "https://b.test/$id", publishedAt = 1L, wpcomBlogId = 5, wpcomPostId = id.substringAfterLast(':').toLong(),
+    )
 
     private fun item(guid: String, title: String) = ParsedItem(
         guid = guid, title = title, link = "https://a.test/$guid", author = null,
@@ -283,6 +335,8 @@ class ReaderRepositoryTest {
             return subscriptions
         }
         override suspend fun following(cursor: PageCursor?) = WpcomPage(emptyList(), null)
+        var likes = WpcomLikes(emptyList(), complete = true)
+        override suspend fun liked() = likes
         var sitePosts: List<WpcomPost> = emptyList()
         override suspend fun sitePosts(site: SiteEntity): List<WpcomPost> =
             sitePosts.map { it.copy(post = it.post.copy(siteId = site.id)) }
