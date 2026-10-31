@@ -58,6 +58,46 @@ class ArticleBlocksTest {
     }
 
     @Test
+    fun `groups WordPress galleries into grids`() {
+        val html = """
+            <figure class="wp-block-gallery has-nested-images columns-default is-cropped">
+              <figure class="wp-block-image"><img src="https://a.test/1.jpg"><figcaption>One</figcaption></figure>
+              <figure class="wp-block-image"><img src="https://a.test/2.jpg"></figure>
+              <figcaption class="blocks-gallery-caption">Trip</figcaption>
+            </figure>
+            <div class="gallery gallery-columns-5">
+              <dl class="gallery-item"><dt><img src="https://a.test/3.jpg"></dt><dd class="gallery-caption">Three</dd></dl>
+              <dl class="gallery-item"><dt><img src="https://a.test/4.jpg"></dt></dl>
+              <dl class="gallery-item"><dt><img src="https://a.test/5.jpg"></dt></dl>
+            </div>
+            <div class="wp-block-jetpack-tiled-gallery"><div class="tiled-gallery__gallery">
+              <figure class="tiled-gallery__item"><img src="https://a.test/6.jpg"></figure>
+            </div></div>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                Block.Gallery(
+                    listOf(Block.Image("https://a.test/1.jpg", "One"), Block.Image("https://a.test/2.jpg", null)),
+                    columns = 2,
+                    caption = "Trip",
+                ),
+                Block.Gallery(
+                    listOf(
+                        Block.Image("https://a.test/3.jpg", "Three"),
+                        Block.Image("https://a.test/4.jpg", null),
+                        Block.Image("https://a.test/5.jpg", null),
+                    ),
+                    columns = 3,
+                    caption = null,
+                ),
+                // A one-image gallery is just an image.
+                Block.Image("https://a.test/6.jpg", null),
+            ),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
     fun `turns WordPress video embeds into playable blocks`() {
         // Markup as it appears in WordPress.com feeds.
         val html = """
