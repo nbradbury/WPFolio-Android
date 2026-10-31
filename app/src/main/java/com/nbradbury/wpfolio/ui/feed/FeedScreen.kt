@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
@@ -42,6 +44,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -76,6 +79,7 @@ import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
 import com.nbradbury.wpfolio.ui.wpFolioViewModel
+import kotlinx.coroutines.launch
 
 private val HeroHeight = 480.dp
 private val PillClearance = 120.dp
@@ -99,16 +103,30 @@ fun FeedScreen(
         viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 
+    val gridState = rememberLazyStaggeredGridState()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // Tapping Home on the feed scrolls back to the top, or does nothing if it's already there.
+    val onSelectTab: (Tab) -> Unit = { tab ->
+        if (tab != Tab.HOME) {
+            onTab(tab)
+        } else if (colors.isDark) {
+            if (listState.canScrollBackward) scope.launch { listState.animateScrollToItem(0) }
+        } else if (gridState.canScrollBackward) {
+            scope.launch { gridState.animateScrollToItem(0) }
+        }
+    }
+
     val pill = rememberHideOnScrollState()
     Box(Modifier.fillMaxSize().background(colors.background).nestedScroll(pill.connection)) {
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
             when {
                 state.posts.isEmpty() -> EmptyFeed(loading = !state.loaded || refreshing, onAdd = { onTab(Tab.ADD) })
-                colors.isDark -> DarkFeed(state, onOpenPost, { showAccount = true }, viewModel::loadMore)
-                else -> MagazineFeed(state, onOpenPost, { showAccount = true }, viewModel::loadMore)
+                colors.isDark -> DarkFeed(state, listState, onOpenPost, { showAccount = true }, viewModel::loadMore)
+                else -> MagazineFeed(state, gridState, onOpenPost, { showAccount = true }, viewModel::loadMore)
             }
         }
-        HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) { NavPill(Tab.HOME, onTab) }
+        HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) { NavPill(Tab.HOME, onSelectTab) }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
     }
 
@@ -129,6 +147,7 @@ fun FeedScreen(
 @Composable
 private fun MagazineFeed(
     state: FeedUiState,
+    gridState: LazyStaggeredGridState,
     onOpenPost: (String) -> Unit,
     onAccount: () -> Unit,
     onLoadMore: () -> Unit,
@@ -136,7 +155,6 @@ private fun MagazineFeed(
     val colors = WpFolio.colors
     val hero = state.posts.firstOrNull { it.imageUrl != null } ?: state.posts.first()
     val tiles = remember(state.posts, hero) { state.posts.filter { it.id != hero.id } }
-    val gridState = rememberLazyStaggeredGridState()
     val density = LocalDensity.current
     val statusBarPx = WindowInsets.statusBars.getTop(density)
     val heroPx = with(density) { HeroHeight.roundToPx() }
@@ -275,6 +293,7 @@ private fun Tile(post: PostEntity, index: Int, onClick: () -> Unit) {
 @Composable
 private fun DarkFeed(
     state: FeedUiState,
+    listState: LazyListState,
     onOpenPost: (String) -> Unit,
     onAccount: () -> Unit,
     onLoadMore: () -> Unit,
@@ -282,7 +301,6 @@ private fun DarkFeed(
     val colors = WpFolio.colors
     val rail = remember(state.posts) { state.posts.filter { it.imageUrl != null }.take(4) }
     val latest = remember(state.posts, rail) { state.posts - rail.toSet() }
-    val listState = rememberLazyListState()
     SystemBarIcons(lightIcons = true)
     LoadMoreEffect({ listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }, latest.size + 3, onLoadMore)
 
