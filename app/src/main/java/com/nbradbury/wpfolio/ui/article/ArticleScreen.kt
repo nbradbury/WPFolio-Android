@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,6 +32,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -410,9 +412,11 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
             block.text,
             style = ui(14f).copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
             color = colors.body,
+            softWrap = false,
             modifier = padded
                 .clip(RoundedCornerShape(12.dp))
                 .background(colors.divider)
+                .horizontalScroll(rememberScrollState())
                 .padding(14.dp),
         )
         is Block.Video -> VideoBlock(block, accent, active = isCurrent)
