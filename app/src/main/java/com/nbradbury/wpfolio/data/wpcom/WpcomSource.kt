@@ -6,6 +6,9 @@ import java.time.Instant
 
 data class WpcomPage(val posts: List<WpcomPost>, val next: PageCursor?)
 
+/** Liked posts, most recently liked first; [complete] is false when there were too many to fetch. */
+data class WpcomLikes(val posts: List<WpcomPost>, val complete: Boolean)
+
 /** Either the API's own page handle or, when it doesn't send one, the oldest date seen. */
 sealed interface PageCursor {
     data class Handle(val value: String) : PageCursor
@@ -16,6 +19,7 @@ interface WpcomSource {
     suspend fun me(): WpcomMe
     suspend fun subscriptions(): List<SiteEntity>
     suspend fun following(cursor: PageCursor?): WpcomPage
+    suspend fun liked(): WpcomLikes
     suspend fun sitePosts(site: SiteEntity): List<WpcomPost>
     suspend fun searchSites(query: String): List<SiteSearchResult>
     suspend fun videoPoster(guid: String): String?
@@ -50,6 +54,19 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         val next = WpcomMapper.nextPageHandle(json)?.let { PageCursor.Handle(it) }
             ?: posts.minOfOrNull { it.post.publishedAt }?.let { PageCursor.Before(Instant.ofEpochMilli(it).toString()) }
         return WpcomPage(posts, next.takeIf { posts.isNotEmpty() })
+    }
+
+    override suspend fun liked(): WpcomLikes {
+        val all = mutableListOf<WpcomPost>()
+        var before: String? = null
+        repeat(MAX_PAGES) {
+            val json = api.liked(number = FEED_PAGE_SIZE, before = before)
+            val page = WpcomMapper.posts(json)
+            all += page
+            if (page.size < FEED_PAGE_SIZE) return WpcomLikes(all, complete = true)
+            before = WpcomMapper.oldestLike(json) ?: return WpcomLikes(all, complete = true)
+        }
+        return WpcomLikes(all, complete = false)
     }
 
     override suspend fun sitePosts(site: SiteEntity): List<WpcomPost> {

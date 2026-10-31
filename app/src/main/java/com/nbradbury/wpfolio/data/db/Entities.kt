@@ -48,6 +48,8 @@ data class PostEntity(
     val isRead: Boolean = false,
     val isSaved: Boolean = false,
     val isLiked: Boolean = false,
+    /** When the post was liked, if known; likes from before version 2 and some synced likes don't say. */
+    val likedAt: Long? = null,
 ) {
     val canLikeRemotely: Boolean get() = wpcomBlogId != null && wpcomPostId != null
 }

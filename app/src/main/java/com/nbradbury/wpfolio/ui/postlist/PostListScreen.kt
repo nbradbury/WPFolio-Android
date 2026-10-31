@@ -15,11 +15,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +47,14 @@ fun PostListScreen(list: PostList, onBack: () -> Unit, onOpenPost: (String) -> U
         else -> Triple("Saved", "Bookmark a post while reading to keep it here.", repository.saved)
     }
     val posts by source.collectAsStateWithLifecycle(initialValue = null)
+    // Liked also includes posts liked elsewhere on WordPress.com; the cached list shows meanwhile.
+    var syncing by remember { mutableStateOf(list == PostList.LIKED) }
+    if (list == PostList.LIKED) {
+        LaunchedEffect(Unit) {
+            runCatching { repository.syncLiked() }
+            syncing = false
+        }
+    }
     val colors = WpFolio.colors
     SystemBarIcons(lightIcons = colors.isDark)
 
@@ -59,7 +72,11 @@ fun PostListScreen(list: PostList, onBack: () -> Unit, onOpenPost: (String) -> U
         val loaded = posts ?: return@Column
         if (loaded.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                Text(emptyText, style = body(15f), color = colors.bodyMuted)
+                if (syncing) {
+                    CircularProgressIndicator(color = colors.textSecondary)
+                } else {
+                    Text(emptyText, style = body(15f), color = colors.bodyMuted)
+                }
             }
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.navigationBarsPadding()) {

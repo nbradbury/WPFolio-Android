@@ -72,6 +72,9 @@ object WpcomMapper {
 
     fun nextPageHandle(json: JsonObject): String? = json.string("next_page_handle")
 
+    /** The oldest like date on a page of liked posts, which fetches the next page as `before`. */
+    fun oldestLike(json: JsonObject): String? = json.obj("date_range")?.string("after")
+
     fun searchResults(json: JsonObject): List<SiteSearchResult> =
         json.array("feeds").mapNotNull { element ->
             val feed = element as? JsonObject ?: return@mapNotNull null
@@ -121,6 +124,8 @@ object WpcomMapper {
             wordCount = json.long("word_count")?.toInt() ?: 0,
             wpcomBlogId = if (isExternal) null else blogId,
             wpcomPostId = if (isExternal) null else postId,
+            // Only the liked stream says when a post was liked.
+            likedAt = json.string("date_liked")?.let(FeedParser::parseDate),
         )
         return WpcomPost(entity, liked = json.bool("i_like") == true)
     }

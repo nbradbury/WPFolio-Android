@@ -107,6 +107,19 @@ class ReaderRepository(
         return page.next != null
     }
 
+    /**
+     * Pulls the signed-in user's likes from WordPress.com, so Liked includes posts liked
+     * elsewhere, and clears likes that were removed elsewhere.
+     */
+    suspend fun syncLiked() {
+        if (!isSignedIn()) return
+        val likes = wpcom.liked()
+        // Many liked posts are old, so they'd otherwise sit in the feed as unread.
+        posts.merge(likes.posts.map { it.post.copy(isRead = true) }, likes.posts.associate { it.post.id to true })
+        if (likes.complete) posts.unlikeAllExcept(likes.posts.map { it.post.id })
+        onPostsChanged()
+    }
+
     suspend fun refreshSite(siteId: String) {
         val site = sites.get(siteId) ?: return
         when (site.origin) {
@@ -232,12 +245,12 @@ class ReaderRepository(
     suspend fun toggleLiked(postId: String) {
         val post = posts.get(postId) ?: return
         val liked = !post.isLiked
-        posts.setLiked(postId, liked)
+        posts.setLiked(postId, liked, if (liked) System.currentTimeMillis() else null)
         if (post.canLikeRemotely && isSignedIn()) {
             try {
                 wpcom.setLiked(post.wpcomBlogId!!, post.wpcomPostId!!, liked)
             } catch (e: Exception) {
-                posts.setLiked(postId, !liked)
+                posts.setLiked(postId, post.isLiked, post.likedAt)
                 throw e
             }
         }

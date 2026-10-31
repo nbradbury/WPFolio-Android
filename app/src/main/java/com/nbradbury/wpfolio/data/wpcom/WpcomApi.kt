@@ -25,6 +25,14 @@ interface WpcomApi {
         @Query("meta") meta: String = "site",
     ): JsonObject
 
+    /** The user's liked posts, most recently liked first; [before] is a like date to page from. */
+    @GET("rest/v1.2/read/liked")
+    suspend fun liked(
+        @Query("number") number: Int,
+        @Query("before") before: String?,
+        @Query("meta") meta: String = "site",
+    ): JsonObject
+
     @GET("rest/v1.2/read/sites/{blogId}/posts")
     suspend fun sitePosts(@Path("blogId") blogId: Long, @Query("number") number: Int = 20): JsonObject
 
