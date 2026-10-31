@@ -7,6 +7,7 @@ import com.nbradbury.wpfolio.data.db.SiteEntity
 import com.nbradbury.wpfolio.data.db.SiteWithLatest
 import com.nbradbury.wpfolio.data.prefs.SettingsStore
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
+import com.nbradbury.wpfolio.data.rss.FeedParser
 import com.nbradbury.wpfolio.data.rss.FetchResult
 import com.nbradbury.wpfolio.data.rss.ParsedItem
 import com.nbradbury.wpfolio.data.rss.RssSource
@@ -356,6 +357,6 @@ internal fun ParsedItem.toEntity(site: SiteEntity): PostEntity {
         author = author,
         imageUrl = imageUrl,
         publishedAt = publishedAt ?: 0L,
-        wordCount = if (text.isBlank()) 0 else text.trim().split(Regex("\\s+")).size,
+        wordCount = FeedParser.wordCount(text),
     )
 }

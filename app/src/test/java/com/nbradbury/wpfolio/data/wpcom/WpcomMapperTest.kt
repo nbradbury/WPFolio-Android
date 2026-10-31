@@ -12,6 +12,14 @@ import org.junit.Test
 class WpcomMapperTest {
 
     @Test
+    fun `counts words itself when the API reports none`() {
+        val json = Json.parseToJsonElement(
+            """{"posts":[{"ID":1,"site_ID":5,"word_count":0,"content":"<p>Four words <em>right</em> here.</p>"}]}"""
+        ).jsonObject
+        assertEquals(4, WpcomMapper.posts(json).single().post.wordCount)
+    }
+
+    @Test
     fun `reads when liked posts were liked, and pages by the oldest`() {
         val json = Json.parseToJsonElement(
             """
