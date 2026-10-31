@@ -99,7 +99,6 @@ import com.nbradbury.wpfolio.ui.components.PillContainer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
-import com.nbradbury.wpfolio.ui.components.readTime
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.openInBrowser
 import com.nbradbury.wpfolio.ui.shareLink
@@ -354,6 +353,10 @@ private fun ArticleHeader(post: PostEntity, onOpenSite: (() -> Unit)?) {
 
 private fun byline(post: PostEntity): String? =
     listOfNotNull(post.author, readTime(post.wordCount)).joinToString(" · ").ifEmpty { null }
+
+/** "4 min read" at about 230 words a minute, or null when there's no text to read. */
+private fun readTime(wordCount: Int): String? =
+    if (wordCount > 0) "${((wordCount + 115) / 230).coerceAtLeast(1)} min read" else null
 
 @Composable
 private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {

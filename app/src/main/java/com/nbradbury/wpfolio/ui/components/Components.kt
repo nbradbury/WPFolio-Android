@@ -198,10 +198,6 @@ fun relativeTime(epochMillis: Long, now: Long = System.currentTimeMillis()): Str
     }
 }
 
-/** "4 min read" at about 230 words a minute, or null when there's no text to read. */
-fun readTime(wordCount: Int): String? =
-    if (wordCount > 0) "${((wordCount + 115) / 230).coerceAtLeast(1)} min read" else null
-
 /** Host plus path, without scheme or trailing slash: "secondrun.film/rss". */
 fun displayUrl(url: String): String =
     url.substringAfter("://").removePrefix("www.").trimEnd('/')
