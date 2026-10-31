@@ -73,7 +73,6 @@ import com.nbradbury.wpfolio.ui.components.NavPill
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentColor
-import com.nbradbury.wpfolio.ui.components.readTime
 import com.nbradbury.wpfolio.ui.components.relativeTime
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
@@ -232,11 +231,7 @@ private fun Hero(
                     initialSize = 10f,
                 )
                 Text(post.siteName, style = ui(12.5f, 500), color = Color.White, maxLines = 1)
-                Text(
-                    listOfNotNull(relativeTime(post.publishedAt), readTime(post.wordCount)).joinToString(" · ", prefix = "· "),
-                    style = ui(12.5f, 500),
-                    color = Color.White.copy(alpha = 0.7f),
-                )
+                Text("· ${relativeTime(post.publishedAt)}", style = ui(12.5f, 500), color = Color.White.copy(alpha = 0.7f))
             }
             Text(
                 post.title,
@@ -285,7 +280,13 @@ private fun Tile(post: PostEntity, index: Int, onClick: () -> Unit) {
         if (post.imageUrl == null && post.excerpt.isNotBlank()) {
             Text(post.excerpt, style = body(13f, 1.4f), color = colors.bodyMuted, maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
-        PostMeta(post, colors.textSecondary)
+        Text(
+            "${post.siteName} · ${relativeTime(post.publishedAt)}",
+            style = ui(12f, 500),
+            color = colors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -357,7 +358,7 @@ private fun RailCard(post: PostEntity, onClick: () -> Unit) {
             Modifier.align(Alignment.BottomStart).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PostMeta(post, Color.White.copy(alpha = 0.8f), showTime = false)
+            Text(post.siteName, style = ui(12f, 500), color = Color.White.copy(alpha = 0.8f), maxLines = 1)
             Text(
                 post.title,
                 style = ui(18f, 600, lineHeight = 1.18f, tracking = -0.01f),
@@ -387,30 +388,16 @@ internal fun ListRow(post: PostEntity, onClick: () -> Unit) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                PostMeta(post, colors.textSecondary)
+                Text(
+                    "${post.siteName} · ${relativeTime(post.publishedAt)}",
+                    style = ui(12f, 500),
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         HorizontalDivider(color = colors.divider)
-    }
-}
-
-/** "Site · 2h · 4 min read", shortening the site name rather than the rest when space is tight. */
-@Composable
-private fun PostMeta(post: PostEntity, color: Color, showTime: Boolean = true) {
-    val style = ui(12f, 500)
-    Row {
-        Text(
-            post.siteName,
-            style = style,
-            color = color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        val details = listOfNotNull(relativeTime(post.publishedAt).takeIf { showTime }, readTime(post.wordCount))
-        if (details.isNotEmpty()) {
-            Text(details.joinToString(" · ", prefix = " · "), style = style, color = color, maxLines = 1, softWrap = false)
-        }
     }
 }
 
