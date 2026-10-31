@@ -11,6 +11,8 @@ sealed interface Block {
     data class Image(val url: String, val caption: String?, val width: Int? = null, val height: Int? = null) : Block {
         val aspectRatio: Float? get() = if (width != null && height != null) width.toFloat() / height else null
     }
+    /** A WordPress gallery, shown as a grid of [columns]. [caption] belongs to the whole gallery. */
+    data class Gallery(val images: List<Image>, val columns: Int, val caption: String?) : Block
     data class Quote(val html: String) : Block
     data class ListItem(val html: String, val marker: String, val depth: Int) : Block
     data class Code(val text: String) : Block
@@ -81,6 +83,12 @@ object ArticleBlocks {
     )
     private const val MEDIA = "iframe, video"
 
+    /** Block-editor, classic shortcode and Jetpack tiled galleries. */
+    private val GALLERIES = setOf("wp-block-gallery", "gallery", "tiled-gallery", "wp-block-jetpack-tiled-gallery")
+    private const val GALLERY_ITEM = "figure, .gallery-item, .tiled-gallery-item"
+    private val GALLERY_COLUMNS = Regex("""^(?:gallery-)?columns-(\d+)$""")
+    private const val MAX_GALLERY_COLUMNS = 3
+
     /** Widgets WordPress sometimes leaves in content that aren't part of the post. */
     private val WIDGET_HOSTS = listOf("widgets.wp.com", "jetpack.wordpress.com")
     private val INLINE = setOf("a", "abbr", "b", "br", "cite", "code", "del", "em", "i", "ins", "kbd", "mark", "q", "s", "small", "span", "strong", "sub", "sup", "time", "u")
@@ -116,6 +124,7 @@ object ArticleBlocks {
     }
 
     private fun block(el: Element, out: MutableList<Block>, depth: Int) {
+        if (el.classNames().any { it in GALLERIES }) return gallery(el, out)
         when (el.tagName()) {
             "p" -> {
                 val images = el.select("img").mapNotNull { image(it, caption = null) }
@@ -161,6 +170,23 @@ object ArticleBlocks {
             "hr" -> out += Block.Rule
             else -> walk(el, out, depth)
         }
+    }
+
+    private fun gallery(el: Element, out: MutableList<Block>) {
+        val images = el.select("img").mapNotNull { img ->
+            val item = img.parents().takeWhile { it !== el }.firstOrNull { it.`is`(GALLERY_ITEM) }
+            val caption = item?.selectFirst("figcaption, .gallery-caption, .tiled-gallery-caption")?.text()
+            image(img, caption?.takeIf { it.isNotBlank() })
+        }.distinctBy { it.url }
+        val caption = el.selectFirst(".blocks-gallery-caption")?.text()?.takeIf { it.isNotBlank() }
+        if (images.size < 2) {
+            images.singleOrNull()?.let { out += it.copy(caption = it.caption ?: caption) }
+            return
+        }
+        // Phones are too narrow for the wider layouts a site may ask for.
+        val declared = el.classNames().firstNotNullOfOrNull { GALLERY_COLUMNS.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
+        val columns = minOf(declared ?: MAX_GALLERY_COLUMNS, MAX_GALLERY_COLUMNS, images.size).coerceAtLeast(1)
+        out += Block.Gallery(images, columns, caption)
     }
 
     private fun media(el: Element): Block? {

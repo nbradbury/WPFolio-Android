@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -216,7 +217,13 @@ private fun ArticlePage(
     // Featured image first, then the post's own images, in reading order.
     val images = remember(current.imageUrl, blocks) {
         (listOfNotNull(current.imageUrl?.let { ViewerImage(it, null) }) +
-            blocks.orEmpty().filterIsInstance<Block.Image>().map { ViewerImage(it.url, it.caption) })
+            blocks.orEmpty().flatMap {
+                when (it) {
+                    is Block.Image -> listOf(it)
+                    is Block.Gallery -> it.images
+                    else -> emptyList()
+                }
+            }.map { ViewerImage(it.url, it.caption) })
             .distinctBy { it.url }
     }
     val openImage: (String) -> Unit = { url -> viewerIndex = images.indexOfFirst { it.url == url }.coerceAtLeast(0) }
@@ -384,6 +391,7 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
                 Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
             }
         }
+        is Block.Gallery -> Gallery(block, accent, onImageClick)
         is Block.Quote -> Row(padded.padding(vertical = 4.dp).height(IntrinsicSize.Min)) {
             Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
             Text(
@@ -412,6 +420,41 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
         Block.Rule -> HorizontalDivider(padded.padding(vertical = 12.dp), color = colors.divider)
     }
 }
+
+/** A grid of square crops; a short last row stretches to fill the width, as it does on the web. */
+@Composable
+private fun Gallery(block: Block.Gallery, accent: Color, onImageClick: (String) -> Unit) {
+    val colors = WpFolio.colors
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+            val cell = (maxWidth - GalleryGap * (block.columns - 1)) / block.columns
+            Column(verticalArrangement = Arrangement.spacedBy(GalleryGap)) {
+                block.images.chunked(block.columns).forEach { row ->
+                    Row(Modifier.fillMaxWidth().height(cell), horizontalArrangement = Arrangement.spacedBy(GalleryGap)) {
+                        row.forEach { image ->
+                            AsyncImage(
+                                model = image.url,
+                                contentDescription = image.caption,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(accent.copy(alpha = 0.25f))
+                                    .clickable(onClickLabel = "View image") { onImageClick(image.url) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        block.caption?.let {
+            Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
+        }
+    }
+}
+
+private val GalleryGap = 6.dp
 
 @Composable
 private fun ArticleFooter(post: PostEntity, summaryOnly: Boolean) {
