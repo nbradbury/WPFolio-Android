@@ -246,7 +246,9 @@ private fun ArticlePage(
                 }
             } else {
                 items(loaded) { BlockView(it, current.accentColor, isCurrent, onImageClick = openImage) }
-                item(key = "footer") { ArticleFooter(current, summaryOnly = loaded.size < 3) }
+                item(key = "footer") {
+                    ArticleFooter(current, summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) })
+                }
             }
         }
 

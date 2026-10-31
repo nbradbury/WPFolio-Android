@@ -94,6 +94,18 @@ object ArticleBlocks {
     private val INLINE = setOf("a", "abbr", "b", "br", "cite", "code", "del", "em", "i", "ins", "kbd", "mark", "q", "s", "small", "span", "strong", "sub", "sup", "time", "u")
     private val TRACKERS = listOf("pixel.wp.com", "stats.wordpress.com", "feeds.feedburner.com", "gravatar.com/avatar")
 
+    private val TRUNCATED = Regex("""(?:…|\.\.\.|continue reading|read more)\W*$""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Whether [blocks] look like a feed's excerpt rather than the whole post: nothing at all, or
+     * text that trails off with an ellipsis or a "read more" link, as WordPress's summary feeds do.
+     */
+    fun looksLikeExcerpt(blocks: List<Block>): Boolean {
+        if (blocks.isEmpty()) return true
+        val last = blocks.last() as? Block.Paragraph ?: return false
+        return TRUNCATED.containsMatchIn(Jsoup.parse(last.html).text().trim())
+    }
+
     fun parse(html: String, baseUrl: String): List<Block> {
         if (html.isBlank()) return emptyList()
         val body = Jsoup.parseBodyFragment(html, baseUrl).body()
