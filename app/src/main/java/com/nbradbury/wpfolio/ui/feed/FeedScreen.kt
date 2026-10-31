@@ -254,7 +254,7 @@ private fun Tile(post: PostEntity, index: Int, onClick: () -> Unit) {
         Text(
             post.title,
             style = ui(14.5f, 600, lineHeight = 1.25f),
-            color = colors.text,
+            color = if (post.isRead) colors.textSecondary else colors.text,
             maxLines = 4,
             overflow = TextOverflow.Ellipsis,
         )
