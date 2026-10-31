@@ -106,7 +106,7 @@ fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedI
                 color = colors.text,
             )
             Text(
-                "Your WordPress.com subscriptions and any RSS feed, together in one calm place to read.",
+                "Your WordPress.com subscriptions and any blog or news site, together in one calm place to read.",
                 style = body(15.5f, lineHeight = 1.5f),
                 color = Color(0xFFC4C4C0),
             )
@@ -126,7 +126,7 @@ fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedI
                         .clickable(onClick = onStartWithRss),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Start with RSS feeds", style = ui(15.5f, 600), color = colors.text)
+                    Text("Continue without an account", style = ui(15.5f, 600), color = colors.text)
                 }
             }
         }
