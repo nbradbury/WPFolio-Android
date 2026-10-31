@@ -186,16 +186,17 @@ class ReaderRepositoryTest {
     }
 
     @Test
-    fun `pruning removes unsaved preview posts but keeps saved and subscribed ones`() = runBlocking {
+    fun `pruning removes unsaved preview posts but keeps saved, liked and subscribed ones`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed", items = listOf(item("1", "Subscribed"))))
-        rss.result = FetchResult.Updated(feed(listOf(item("2", "Previewed"), item("3", "Kept"))), null, null)
+        rss.result = FetchResult.Updated(feed(listOf(item("2", "Previewed"), item("3", "Kept"), item("4", "Liked"))), null, null)
         val previewId = repository.loadPreview(searchResult("http://b.test/feed"))
-        val kept = repository.sitePosts(previewId).first().single { it.title == "Kept" }
-        repository.toggleSaved(kept.id)
+        val previewed = repository.sitePosts(previewId).first()
+        repository.toggleSaved(previewed.single { it.title == "Kept" }.id)
+        repository.toggleLiked(previewed.single { it.title == "Liked" }.id)
 
         repository.pruneOrphanedPosts()
 
-        assertEquals(listOf("Kept"), repository.sitePosts(previewId).first().map { it.title })
+        assertEquals(setOf("Kept", "Liked"), repository.sitePosts(previewId).first().map { it.title }.toSet())
         assertEquals(listOf("Subscribed"), repository.feed().first().map { it.title })
     }
 
@@ -215,6 +216,8 @@ class ReaderRepositoryTest {
         )
         repository.toggleSaved(older)
         assertEquals(listOf(older), repository.postIds(PostList.SAVED, older))
+        repository.toggleLiked(older)
+        assertEquals(listOf(older), repository.postIds(PostList.LIKED, older))
     }
 
     @Test

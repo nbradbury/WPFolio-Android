@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
 import com.nbradbury.wpfolio.ui.theme.WpFolio
@@ -58,7 +60,7 @@ class AccountViewModel(private val repository: ReaderRepository) : ViewModel() {
 fun AccountSheet(
     onDismiss: () -> Unit,
     onSignIn: () -> Unit,
-    onOpenSaved: () -> Unit,
+    onOpenList: (PostList) -> Unit,
     onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { AccountViewModel(it.repository) }
@@ -95,7 +97,8 @@ fun AccountSheet(
                     onSignIn()
                 }
             }
-            SheetRow(Icons.Rounded.Bookmark, "Saved", onClick = onOpenSaved)
+            SheetRow(Icons.Rounded.Bookmark, "Saved") { onOpenList(PostList.SAVED) }
+            SheetRow(Icons.Rounded.Favorite, "Liked") { onOpenList(PostList.LIKED) }
             if (current != null) {
                 SheetRow(Icons.AutoMirrored.Rounded.Logout, "Sign out") {
                     onDismiss()

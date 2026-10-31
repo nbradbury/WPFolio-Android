@@ -54,6 +54,7 @@ class ReaderRepository(
     val localSiteCount: Flow<Int> = sites.observeCount(Origin.LOCAL)
     val unreadCount: Flow<Int> = posts.observeUnreadCount()
     val saved: Flow<List<PostEntity>> = posts.observeSaved()
+    val liked: Flow<List<PostEntity>> = posts.observeLiked()
     val sitesWithLatest: Flow<List<SiteWithLatest>> = sites.observeAllWithLatest()
 
     fun feed(): Flow<List<PostEntity>> = posts.observeFeed(FEED_LIMIT)
@@ -65,6 +66,7 @@ class ReaderRepository(
     suspend fun postIds(list: PostList, postId: String): List<String> = when (list) {
         PostList.FEED -> feed().first()
         PostList.SAVED -> saved.first()
+        PostList.LIKED -> liked.first()
         PostList.SITE -> posts.get(postId)?.let { sitePosts(it.siteId).first() }.orEmpty()
     }.map { it.id }
 
