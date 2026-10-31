@@ -99,6 +99,7 @@ import com.nbradbury.wpfolio.ui.components.PillContainer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
+import com.nbradbury.wpfolio.ui.components.readTime
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.openInBrowser
 import com.nbradbury.wpfolio.ui.shareLink
@@ -329,7 +330,7 @@ private fun ArticleHeader(post: PostEntity, onOpenSite: (() -> Unit)?) {
     ) {
         if (colors.isDark) {
             Text(
-                post.siteName.uppercase(),
+                listOfNotNull(post.siteName, readTime(post.wordCount)).joinToString(" · ").uppercase(),
                 style = ui(12f, 600, tracking = 0.06f),
                 color = colors.bodyMuted,
                 modifier = siteLink,
@@ -343,7 +344,7 @@ private fun ArticleHeader(post: PostEntity, onOpenSite: (() -> Unit)?) {
                 SiteAvatar(null, post.siteName, post.accentColor, 30.dp, initialSize = 13f)
                 Column {
                     Text(post.siteName, style = ui(13.5f, 600), color = colors.text)
-                    Text(byline(post), style = ui(12f, 500), color = colors.textSecondary)
+                    byline(post)?.let { Text(it, style = ui(12f, 500), color = colors.textSecondary) }
                 }
             }
         }
@@ -351,10 +352,8 @@ private fun ArticleHeader(post: PostEntity, onOpenSite: (() -> Unit)?) {
     }
 }
 
-private fun byline(post: PostEntity): String {
-    val minutes = (post.wordCount / 230).coerceAtLeast(1)
-    return listOfNotNull(post.author, "$minutes min read").joinToString(" · ")
-}
+private fun byline(post: PostEntity): String? =
+    listOfNotNull(post.author, readTime(post.wordCount)).joinToString(" · ").ifEmpty { null }
 
 @Composable
 private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {

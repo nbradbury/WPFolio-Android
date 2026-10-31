@@ -121,7 +121,8 @@ object WpcomMapper {
             author = json.obj("author")?.string("name")?.takeIf { it.isNotBlank() },
             imageUrl = image,
             publishedAt = FeedParser.parseDate(json.string("date")) ?: System.currentTimeMillis(),
-            wordCount = json.long("word_count")?.toInt() ?: 0,
+            // Some sites don't report a word count, so count the content's words instead.
+            wordCount = json.long("word_count")?.toInt()?.takeIf { it > 0 } ?: FeedParser.wordCount(Jsoup.parse(content).text()),
             wpcomBlogId = if (isExternal) null else blogId,
             wpcomPostId = if (isExternal) null else postId,
             // Only the liked stream says when a post was liked.

@@ -126,6 +126,8 @@ object FeedParser {
             ?.let { resolve(baseUrl, it) }
     }
 
+    fun wordCount(text: String): Int = text.split(WHITESPACE).count { it.isNotEmpty() }
+
     fun firstContentImage(html: String, baseUrl: String): String? =
         Jsoup.parse(html, baseUrl).select("img[src]").firstOrNull { img ->
             img.attr("width") != "1" && img.attr("height") != "1" &&
@@ -147,6 +149,7 @@ object FeedParser {
     }
 
     private val ROOT_TAGS = setOf("rss", "feed", "rdf:rdf")
+    private val WHITESPACE = Regex("\\s+")
     private val IMAGE_EXT = Regex("\\.(jpe?g|png|webp|gif|avif)(\\?|$)", RegexOption.IGNORE_CASE)
     private val TRACKERS = listOf("feeds.feedburner.com", "pixel.wp.com", "stats.wordpress.com", "gravatar.com/avatar")
     private val RFC822_FORMATS = listOf(
