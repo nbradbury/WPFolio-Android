@@ -3,6 +3,7 @@ package com.nbradbury.wpfolio.ui.article
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
+import com.nbradbury.wpfolio.data.rss.FeedParser
 
 sealed interface Block {
     data class Paragraph(val html: String) : Block
@@ -95,7 +96,6 @@ object ArticleBlocks {
     /** Widgets WordPress sometimes leaves in content that aren't part of the post. */
     private val WIDGET_HOSTS = listOf("widgets.wp.com", "jetpack.wordpress.com")
     private val INLINE = setOf("a", "abbr", "b", "br", "cite", "code", "del", "em", "i", "ins", "kbd", "mark", "q", "s", "small", "span", "strong", "sub", "sup", "time", "u")
-    private val TRACKERS = listOf("pixel.wp.com", "stats.wordpress.com", "feeds.feedburner.com", "gravatar.com/avatar")
 
     private val TRUNCATED = Regex("""(?:…|\.\.\.|continue reading|read more)\W*$""", RegexOption.IGNORE_CASE)
 
@@ -121,6 +121,11 @@ object ArticleBlocks {
     private fun walk(parent: Element, out: MutableList<Block>, depth: Int) {
         val inline = StringBuilder()
         fun flush() {
+            // Whitespace between blocks is the common case, and needs no parse to rule out.
+            if (inline.isBlank()) {
+                inline.clear()
+                return
+            }
             val text = inline.toString()
             if (Jsoup.parse(text).text().isNotBlank()) out += Block.Paragraph(text.trim())
             inline.clear()
@@ -248,8 +253,7 @@ object ArticleBlocks {
             .map { it to img.absUrl(it) }
             .firstOrNull { (_, url) -> url.isNotEmpty() && !url.startsWith("data:") }
             ?: return null
-        if (img.attr("width") == "1" || img.attr("height") == "1") return null
-        if (TRACKERS.any { it in src }) return null
+        if (FeedParser.isTrackingImage(img, src)) return null
         // width/height describe the displayed (possibly cropped) size; when loading the original,
         // WordPress's data-orig-size ("w,h") gives that image's real shape.
         val size = img.attr("data-orig-size").split(',').mapNotNull { it.trim().toIntOrNull() }

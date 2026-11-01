@@ -9,6 +9,7 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.nbradbury.wpfolio.data.AccentSampler
+import com.nbradbury.wpfolio.data.HttpsUpgradeInterceptor
 import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.data.db.WpFolioDatabase
 import com.nbradbury.wpfolio.data.prefs.SettingsStore
@@ -51,6 +52,7 @@ class AppContainer(context: Context) {
     private val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .addInterceptor(HttpsUpgradeInterceptor())
         .addInterceptor { chain ->
             chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
         }
@@ -77,7 +79,6 @@ class AppContainer(context: Context) {
         settings = settings,
         rss = OkHttpRssSource(http),
         wpcom = RetrofitWpcomSource(wpcomApi),
-        onPostsChanged = accentSampler::requestSampling,
     )
 
     private companion object {

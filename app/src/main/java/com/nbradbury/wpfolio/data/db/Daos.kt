@@ -7,6 +7,21 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.nbradbury.wpfolio.data.Accent
+
+/**
+ * Lists never show a post's body, which can run to hundreds of KB, so they read it as empty;
+ * [PostDao.observe] and [PostDao.get] load the whole post.
+ */
+private const val LIST_COLUMNS = "id, siteId, siteName, title, excerpt, '' AS contentHtml, url, author, imageUrl, " +
+    "publishedAt, wordCount, wpcomBlogId, wpcomPostId, accent, imageRatio, isRead, isSaved, isLiked, likedAt"
+
+// Shared by each list and its ID query, so paging in an article follows the list's order.
+private const val FEED = "FROM posts WHERE siteId IN (SELECT id FROM sites) ORDER BY publishedAt DESC LIMIT :limit"
+private const val SITE_POSTS = "FROM posts WHERE siteId = :siteId ORDER BY publishedAt DESC"
+private const val SAVED = "FROM posts WHERE isSaved = 1 ORDER BY publishedAt DESC"
+// Most recently liked first; likes without a time sort by when the post was published.
+private const val LIKED = "FROM posts WHERE isLiked = 1 ORDER BY COALESCE(likedAt, publishedAt) DESC"
 
 @Dao
 interface SiteDao {
@@ -36,6 +51,9 @@ interface SiteDao {
     @Query("SELECT * FROM sites WHERE feedUrl = :url OR siteUrl = :url LIMIT 1")
     suspend fun findByUrl(url: String): SiteEntity?
 
+    @Query("SELECT * FROM sites WHERE feedUrl IN (:urls) OR siteUrl IN (:urls)")
+    suspend fun findByUrls(urls: List<String>): List<SiteEntity>
+
     @Query("SELECT COUNT(*) FROM sites")
     fun observeCount(): Flow<Int>
 
@@ -57,18 +75,29 @@ interface SiteDao {
 
 @Dao
 interface PostDao {
-    @Query("SELECT * FROM posts WHERE siteId IN (SELECT id FROM sites) ORDER BY publishedAt DESC LIMIT :limit")
+    @Query("SELECT $LIST_COLUMNS $FEED")
     fun observeFeed(limit: Int): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE siteId = :siteId ORDER BY publishedAt DESC")
+    @Query("SELECT id $FEED")
+    suspend fun feedIds(limit: Int): List<String>
+
+    @Query("SELECT $LIST_COLUMNS $SITE_POSTS")
     fun observeForSite(siteId: String): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE isSaved = 1 ORDER BY publishedAt DESC")
+    @Query("SELECT id $SITE_POSTS")
+    suspend fun siteIds(siteId: String): List<String>
+
+    @Query("SELECT $LIST_COLUMNS $SAVED")
     fun observeSaved(): Flow<List<PostEntity>>
 
-    /** Most recently liked first; likes without a time sort by when the post was published. */
-    @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY COALESCE(likedAt, publishedAt) DESC")
+    @Query("SELECT id $SAVED")
+    suspend fun savedIds(): List<String>
+
+    @Query("SELECT $LIST_COLUMNS $LIKED")
     fun observeLiked(): Flow<List<PostEntity>>
+
+    @Query("SELECT id $LIKED")
+    suspend fun likedIds(): List<String>
 
     @Query("SELECT COUNT(*) FROM posts WHERE isRead = 0 AND siteId IN (SELECT id FROM sites)")
     fun observeUnreadCount(): Flow<Int>
@@ -138,11 +167,24 @@ interface PostDao {
         }
     }
 
-    @Query("SELECT * FROM posts WHERE accent IS NULL AND imageUrl IS NOT NULL ORDER BY publishedAt DESC LIMIT :limit")
-    suspend fun needingAccent(limit: Int): List<PostEntity>
+    /** Featured images still to sample, newest posts first. */
+    @Query(
+        "SELECT imageUrl FROM posts WHERE accent IS NULL AND imageUrl IS NOT NULL " +
+            "GROUP BY imageUrl ORDER BY MAX(publishedAt) DESC LIMIT :limit"
+    )
+    suspend fun imagesNeedingAccent(limit: Int): List<String>
+
+    @Query("SELECT COUNT(*) FROM posts WHERE accent IS NULL AND imageUrl IS NOT NULL")
+    fun observeNeedingAccentCount(): Flow<Int>
 
     @Query("UPDATE posts SET accent = :accent, imageRatio = :ratio WHERE imageUrl = :imageUrl")
     suspend fun setAccent(imageUrl: String, accent: Int, ratio: Float?)
+
+    /** One write per batch, so observers re-query once rather than once per image. */
+    @Transaction
+    suspend fun setAccents(accents: Map<String, Accent>) {
+        for ((url, accent) in accents) setAccent(url, accent.color, accent.imageRatio)
+    }
 
     @Query("UPDATE posts SET isRead = 1 WHERE id = :id")
     suspend fun markRead(id: String)

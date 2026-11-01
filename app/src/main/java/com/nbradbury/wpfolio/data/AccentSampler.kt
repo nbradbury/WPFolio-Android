@@ -11,7 +11,8 @@ import coil3.toBitmap
 import com.nbradbury.wpfolio.data.db.PostDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,17 +30,13 @@ class AccentSampler(
     private val postDao: PostDao,
     scope: CoroutineScope,
 ) {
-    private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val draining = Mutex()
 
     init {
+        // Room already knows which posts lack an accent, so watch that rather than every write path.
         scope.launch {
-            for (ignored in trigger) sampleNow()
+            postDao.observeNeedingAccentCount().filter { it > 0 }.conflate().collect { sampleNow() }
         }
-    }
-
-    fun requestSampling() {
-        trigger.trySend(Unit)
     }
 
     /** Samples every post still missing an accent, returning when they're done. */
@@ -47,12 +44,9 @@ class AccentSampler(
 
     private suspend fun drain() {
         while (true) {
-            val batch = postDao.needingAccent(BATCH).mapNotNull { it.imageUrl }.distinct()
+            val batch = postDao.imagesNeedingAccent(BATCH)
             if (batch.isEmpty()) return
-            for (url in batch) {
-                val accent = sample(url) ?: Accent(fallbackAccent(url), null)
-                postDao.setAccent(url, accent.color, accent.imageRatio)
-            }
+            postDao.setAccents(batch.associateWith { url -> sample(url) ?: Accent(fallbackAccent(url), null) })
         }
     }
 

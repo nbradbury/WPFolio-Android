@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -69,6 +68,7 @@ import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.OverlayButton
 import com.nbradbury.wpfolio.ui.components.PhotoViewer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
+import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.accentFor
@@ -196,7 +196,7 @@ internal fun SiteLayout(
             }
         }
         if (!overCover) {
-            Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.background))
+            StatusBarScrim(colors.background)
         }
         OverlayButton(
             Icons.AutoMirrored.Rounded.ArrowBack,

@@ -1,6 +1,8 @@
 package com.nbradbury.wpfolio.data.wpcom
 
 import com.nbradbury.wpfolio.data.db.SiteEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 
@@ -50,7 +52,7 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
             pageHandle = (cursor as? PageCursor.Handle)?.value,
             before = (cursor as? PageCursor.Before)?.iso,
         )
-        val posts = WpcomMapper.posts(json)
+        val posts = withContext(Dispatchers.Default) { WpcomMapper.posts(json) }
         val next = WpcomMapper.nextPageHandle(json)?.let { PageCursor.Handle(it) }
             ?: posts.minOfOrNull { it.post.publishedAt }?.let { PageCursor.Before(Instant.ofEpochMilli(it).toString()) }
         return WpcomPage(posts, next.takeIf { posts.isNotEmpty() })
@@ -61,7 +63,7 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         var before: String? = null
         repeat(MAX_PAGES) {
             val json = api.liked(number = FEED_PAGE_SIZE, before = before)
-            val page = WpcomMapper.posts(json)
+            val page = withContext(Dispatchers.Default) { WpcomMapper.posts(json) }
             all += page
             if (page.size < FEED_PAGE_SIZE) return WpcomLikes(all, complete = true)
             before = WpcomMapper.oldestLike(json) ?: return WpcomLikes(all, complete = true)
@@ -75,7 +77,7 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
             site.wpcomFeedId != null -> api.feedPosts(site.wpcomFeedId)
             else -> return emptyList()
         }
-        return WpcomMapper.posts(json, siteIdOverride = site.id)
+        return withContext(Dispatchers.Default) { WpcomMapper.posts(json, siteIdOverride = site.id) }
     }
 
     override suspend fun searchSites(query: String): List<SiteSearchResult> =

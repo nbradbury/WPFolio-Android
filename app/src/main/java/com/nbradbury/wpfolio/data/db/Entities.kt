@@ -27,7 +27,8 @@ data class SiteEntity(
 
 @Entity(
     tableName = "posts",
-    indices = [Index("siteId"), Index("publishedAt")],
+    // (siteId, publishedAt) serves per-site lists and each site's latest post; imageUrl serves accent writes.
+    indices = [Index("siteId", "publishedAt"), Index("publishedAt"), Index("imageUrl")],
 )
 data class PostEntity(
     @PrimaryKey val id: String,

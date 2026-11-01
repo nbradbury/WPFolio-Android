@@ -52,11 +52,11 @@ class OkHttpRssSource(private val client: OkHttpClient) : RssSource {
         val page = withContext(Dispatchers.Default) { FeedDiscovery.parse(body, finalUrl) }
         val candidates = page.feedUrls.ifEmpty { listOf(originOf(finalUrl) + "/feed/") }
         for (candidate in candidates) {
-            val feedBody = runCatching { get(candidate) }.getOrNull() ?: continue
-            val feed = FeedParser.parse(feedBody.second, feedBody.first) ?: continue
+            val (feedUrl, feedText) = runCatching { get(candidate) }.getOrNull() ?: continue
+            val feed = FeedParser.parse(feedText, feedUrl) ?: continue
             return preview(
                 feed = feed,
-                feedUrl = feedBody.first,
+                feedUrl = feedUrl,
                 isWordPress = page.isWordPress || feed.isWordPress,
                 fallbackTitle = page.title,
                 fallbackDescription = page.description,
