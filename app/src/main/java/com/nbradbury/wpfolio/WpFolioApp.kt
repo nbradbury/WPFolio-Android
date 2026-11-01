@@ -53,6 +53,7 @@ class AppContainer(context: Context) {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(HttpsUpgradeInterceptor())
+        .addNetworkInterceptor(HttpsUpgradeInterceptor())
         .addInterceptor { chain ->
             chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
         }

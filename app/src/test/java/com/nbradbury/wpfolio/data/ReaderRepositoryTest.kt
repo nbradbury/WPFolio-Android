@@ -178,12 +178,13 @@ class ReaderRepositoryTest {
     }
 
     @Test
-    fun `previewing a plain feed fetches it on device`() = runBlocking {
+    fun `previewing a plain feed fetches it on device under its https URL`() = runBlocking {
         rss.result = FetchResult.Updated(feed(listOf(item("1", "Feed post"))), etag = null, lastModified = null)
         val siteId = repository.loadPreview(searchResult("http://b.test/feed"))
 
-        assertEquals(listOf("http://b.test/feed"), rss.fetches)
-        assertEquals("http://b.test/feed", siteId)
+        // The https URL is the one subscribing records, so the preview's posts carry over.
+        assertEquals(listOf("https://b.test/feed"), rss.fetches)
+        assertEquals("https://b.test/feed", siteId)
         assertEquals(listOf("Feed post"), repository.sitePosts(siteId).first().map { it.title })
     }
 
@@ -313,13 +314,12 @@ class ReaderRepositoryTest {
         val fetches = mutableListOf<String>()
         override suspend fun fetch(feedUrl: String, etag: String?, lastModified: String?): FetchResult {
             fetches += feedUrl
-            if (fail || feedUrl.startsWith("https://b.test")) throw java.io.IOException("offline")
+            if (fail) throw java.io.IOException("offline")
             return result
         }
         val lookups = mutableListOf<String>()
         override suspend fun lookup(input: String): SitePreview {
             lookups += input
-            if (input.startsWith("https://")) throw java.io.IOException("no https")
             return SitePreview("A", "", "https://a.test", input, isWordPress = false, items = emptyList())
         }
     }

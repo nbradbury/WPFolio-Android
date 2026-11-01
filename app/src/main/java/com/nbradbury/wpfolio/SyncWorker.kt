@@ -10,7 +10,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nbradbury.wpfolio.data.SessionExpiredException
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -22,15 +21,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val container = applicationContext.container
         try {
-            coroutineScope {
-                // Independent of the refresh, and best effort: the Liked screen syncs again when opened.
-                launch { runCatching { container.repository.syncLiked() } }
-                container.repository.refresh()
-            }
+            container.repository.refresh()
         } catch (e: SessionExpiredException) {
             // Signed out now; there's nothing to sync until the user signs in again.
             return Result.success()
         }
+        // After the refresh, so a session that just expired can't merge likes back in after
+        // sign-out. Best effort: the Liked screen syncs again when opened.
+        runCatching { container.repository.syncLiked() }
         // Sampling runs in the app's scope, which can be killed once this returns.
         container.accentSampler.sampleNow()
         return Result.success()
