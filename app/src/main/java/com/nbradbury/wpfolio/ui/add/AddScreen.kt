@@ -63,9 +63,7 @@ import com.nbradbury.wpfolio.data.rss.LookupException
 import com.nbradbury.wpfolio.data.rss.OkHttpRssSource
 import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.components.AccentImage
-import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.accentFor
-import com.nbradbury.wpfolio.ui.components.displayUrl
 import com.nbradbury.wpfolio.ui.theme.Destructive
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
@@ -103,7 +101,14 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
     private val _subscribing = MutableStateFlow<String?>(null)
     val subscribing = _subscribing.asStateFlow()
 
+    /** Shown until the reader starts typing; empty if they couldn't be loaded. */
+    private val _suggestions = MutableStateFlow<List<SiteSearchResult>>(emptyList())
+    val suggestions = _suggestions.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            _suggestions.value = runCatching { container.repository.recommendedSites() }.getOrDefault(emptyList())
+        }
         viewModelScope.launch {
             _query.debounce(400).distinctUntilChanged().collectLatest { lookup(it) }
         }
@@ -184,6 +189,7 @@ fun AddScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val subscribing by viewModel.subscribing.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val colors = WpFolio.colors
     val focus = remember { FocusRequester() }
     SystemBarIcons(lightIcons = colors.isDark)
@@ -238,7 +244,14 @@ fun AddScreen(
                 }
             }
             is AddState.Results -> SearchResults(s, subscribing, onOpenSite) { viewModel.subscribe(it, onSubscribed) }
-            else -> Unit
+            AddState.Idle -> SuggestedSites(
+                sites = suggestions,
+                subscribing = subscribing,
+                onOpen = onOpenSite,
+                onSubscribe = { viewModel.subscribe(it, onSubscribed) },
+                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
+            )
+            AddState.Looking -> Unit
         }
     }
 }
@@ -396,74 +409,13 @@ private fun SearchResults(
     }
     Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         state.results.forEach { result ->
-            SearchResultRow(
+            SiteResultRow(
                 result = result,
                 subscribing = subscribing == result.feedUrl,
                 enabled = subscribing == null,
                 onOpen = { onOpen(result) },
                 onSubscribe = { onSubscribe(result) },
             )
-        }
-    }
-}
-
-@Composable
-private fun SearchResultRow(
-    result: SiteSearchResult,
-    subscribing: Boolean,
-    enabled: Boolean,
-    onOpen: () -> Unit,
-    onSubscribe: () -> Unit,
-) {
-    val colors = WpFolio.colors
-    Row(
-        Modifier.clickable(onClickLabel = "See posts", onClick = onOpen),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SiteAvatar(result.iconUrl, result.name, accentFor(null, result.feedUrl), 44.dp)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(result.name, style = ui(15f, 600), color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                displayUrl(result.siteUrl),
-                style = ui(12.5f, 500),
-                color = colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (result.description.isNotBlank()) {
-                Text(
-                    result.description,
-                    style = body(13f, lineHeight = 1.35f),
-                    color = colors.bodyMuted,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        when {
-            result.subscribedSiteId != null -> Icon(
-                Icons.Rounded.Check,
-                contentDescription = "Subscribed",
-                tint = colors.textSecondary,
-                modifier = Modifier.size(22.dp),
-            )
-            subscribing -> CircularProgressIndicator(
-                Modifier.size(22.dp),
-                color = colors.textSecondary,
-                strokeWidth = 2.dp,
-            )
-            else -> Box(
-                Modifier
-                    .height(34.dp)
-                    .clip(CircleShape)
-                    .background(colors.inverse)
-                    .clickable(enabled = enabled, onClickLabel = "Subscribe to ${result.name}", onClick = onSubscribe)
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("Subscribe", style = ui(13f, 600), color = colors.onInverse)
-            }
         }
     }
 }

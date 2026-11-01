@@ -33,6 +33,13 @@ interface WpcomApi {
         @Query("meta") meta: String = "site",
     ): JsonObject
 
+    /** Sites to follow: based on the user's likes when signed in, a general mix when not. */
+    @GET("rest/v1.2/read/recommendations/sites")
+    suspend fun recommendedSites(
+        @Query("number") number: Int,
+        @Query("posts_per_site") postsPerSite: Int = 0,
+    ): JsonObject
+
     @GET("rest/v1.2/read/sites/{blogId}/posts")
     suspend fun sitePosts(@Path("blogId") blogId: Long, @Query("number") number: Int = 20): JsonObject
 

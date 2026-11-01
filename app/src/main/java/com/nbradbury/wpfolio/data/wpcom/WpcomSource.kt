@@ -24,6 +24,7 @@ interface WpcomSource {
     suspend fun liked(): WpcomLikes
     suspend fun sitePosts(site: SiteEntity): List<WpcomPost>
     suspend fun searchSites(query: String): List<SiteSearchResult>
+    suspend fun recommendedSites(): List<SiteSearchResult>
     suspend fun videoPoster(guid: String): String?
     suspend fun follow(url: String)
     suspend fun unfollow(url: String)
@@ -83,6 +84,9 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
     override suspend fun searchSites(query: String): List<SiteSearchResult> =
         WpcomMapper.searchResults(api.searchFeeds(query))
 
+    override suspend fun recommendedSites(): List<SiteSearchResult> =
+        WpcomMapper.recommendedSites(api.recommendedSites(number = RECOMMENDED_SITES))
+
     override suspend fun videoPoster(guid: String): String? {
         val poster = api.video(guid)["poster"] as? JsonPrimitive ?: return null
         return poster.content.takeIf { poster.isString && it.startsWith("https://") }
@@ -104,5 +108,6 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         const val PAGE_SIZE = 200
         const val MAX_PAGES = 10
         const val FEED_PAGE_SIZE = 30
+        const val RECOMMENDED_SITES = 10
     }
 }

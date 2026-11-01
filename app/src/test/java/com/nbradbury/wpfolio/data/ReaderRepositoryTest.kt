@@ -148,6 +148,14 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `recommended sites leave out ones already subscribed to`() = runBlocking {
+        repository.subscribe(preview(feedUrl = "https://a.test/feed"))
+        wpcom.recommended = listOf(searchResult("https://a.test/feed"), searchResult("https://b.test/feed"))
+
+        assertEquals(listOf("https://b.test/feed"), repository.recommendedSites().map { it.feedUrl })
+    }
+
+    @Test
     fun `signed in, subscribing to a search result follows its feed on WordPress_com`() = runBlocking {
         settings.saveAccount(WpcomAccount("token", "Nick", null))
         wpcom.subscriptions = listOf(wpcomSite("wp:9", feedUrl = "http://b.test/feed"))
@@ -343,6 +351,8 @@ class ReaderRepositoryTest {
             sitePosts.map { it.copy(post = it.post.copy(siteId = site.id)) }
         var searchResults: List<SiteSearchResult> = emptyList()
         override suspend fun searchSites(query: String) = searchResults
+        var recommended: List<SiteSearchResult> = emptyList()
+        override suspend fun recommendedSites() = recommended
         override suspend fun videoPoster(guid: String): String? = null
         override suspend fun follow(url: String) { followed += url }
         override suspend fun unfollow(url: String) { unfollowed += url }

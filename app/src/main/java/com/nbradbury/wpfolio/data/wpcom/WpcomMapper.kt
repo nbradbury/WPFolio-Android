@@ -75,6 +75,25 @@ object WpcomMapper {
     /** The oldest like date on a page of liked posts, which fetches the next page as `before`. */
     fun oldestLike(json: JsonObject): String? = json.obj("date_range")?.string("after")
 
+    /** Recommended sites, leaving out ones the user already follows on WordPress.com. */
+    fun recommendedSites(json: JsonObject): List<SiteSearchResult> =
+        json.array("sites").mapNotNull { element ->
+            val site = element as? JsonObject ?: return@mapNotNull null
+            val url = site.string("URL") ?: return@mapNotNull null
+            if (site.bool("is_following") == true) return@mapNotNull null
+            val blogId = site.long("blog_id")?.takeIf { it > 0 }
+            SiteSearchResult(
+                name = site.string("name")?.unescape()?.takeIf { it.isNotBlank() } ?: OkHttpRssSource.hostOf(url),
+                siteUrl = url,
+                feedUrl = site.string("feed_url") ?: url,
+                description = site.string("description")?.unescape().orEmpty(),
+                iconUrl = site.obj("icon")?.string("img"),
+                isWordPress = blogId != null,
+                feedId = site.long("feed_id")?.takeIf { it > 0 },
+                blogId = blogId,
+            )
+        }.distinctBy { it.feedUrl }
+
     fun searchResults(json: JsonObject): List<SiteSearchResult> =
         json.array("feeds").mapNotNull { element ->
             val feed = element as? JsonObject ?: return@mapNotNull null

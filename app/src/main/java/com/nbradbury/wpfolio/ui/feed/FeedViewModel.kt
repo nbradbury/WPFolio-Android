@@ -6,6 +6,7 @@ import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.data.SessionExpiredException
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +40,37 @@ class FeedViewModel(private val repository: ReaderRepository) : ViewModel() {
 
     private var loadingMore = false
     private var hasMore = true
+
+    /** Sites to follow, offered while the feed is empty; loaded the first time it is. */
+    private val _suggestions = MutableStateFlow<List<SiteSearchResult>>(emptyList())
+    val suggestions = _suggestions.asStateFlow()
+    private var suggestionsRequested = false
+
+    /** Feed URL of the suggestion being subscribed to, if any. */
+    private val _subscribing = MutableStateFlow<String?>(null)
+    val subscribing = _subscribing.asStateFlow()
+
+    fun loadSuggestions() {
+        if (suggestionsRequested) return
+        suggestionsRequested = true
+        viewModelScope.launch {
+            _suggestions.value = runCatching { repository.recommendedSites() }.getOrDefault(emptyList())
+        }
+    }
+
+    fun subscribe(site: SiteSearchResult) {
+        if (_subscribing.value != null) return
+        viewModelScope.launch {
+            _subscribing.value = site.feedUrl
+            try {
+                repository.subscribe(site)
+            } catch (e: Exception) {
+                _messages.send("Couldn't subscribe to ${site.name}")
+            } finally {
+                _subscribing.value = null
+            }
+        }
+    }
 
     init {
         refresh()

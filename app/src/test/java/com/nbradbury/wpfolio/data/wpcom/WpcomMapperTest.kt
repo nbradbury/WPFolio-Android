@@ -12,6 +12,30 @@ import org.junit.Test
 class WpcomMapperTest {
 
     @Test
+    fun `maps recommended sites, leaving out ones already followed`() {
+        // Trimmed from read/recommendations/sites.
+        val json = Json.parseToJsonElement(
+            """
+            {"sites":[
+              {"name":"Jona Nightingale","URL":"http://jonanightingale.com","feed_url":"http://jonanightingale.com",
+               "description":"Queer Lit &amp; Poetry","icon":{"img":"https://i.test/j.png"},"is_following":false,
+               "blog_id":217328088,"feed_id":"164708916"},
+              {"name":"Followed","URL":"https://f.test","is_following":true,"blog_id":1,"feed_id":2},
+              {"name":"No URL"}
+            ]}
+            """
+        ).jsonObject
+        val site = WpcomMapper.recommendedSites(json).single()
+        assertEquals("Jona Nightingale", site.name)
+        assertEquals("http://jonanightingale.com", site.feedUrl)
+        assertEquals("Queer Lit & Poetry", site.description)
+        assertEquals("https://i.test/j.png", site.iconUrl)
+        assertEquals(217328088L, site.blogId)
+        assertEquals(164708916L, site.feedId)
+        assertTrue(site.isWordPress)
+    }
+
+    @Test
     fun `counts words itself when the API reports none`() {
         val json = Json.parseToJsonElement(
             """{"posts":[{"ID":1,"site_ID":5,"word_count":0,"content":"<p>Four words <em>right</em> here.</p>"}]}"""
