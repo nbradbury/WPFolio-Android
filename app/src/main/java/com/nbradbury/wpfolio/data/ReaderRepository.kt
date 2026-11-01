@@ -133,12 +133,21 @@ class ReaderRepository(
 
     /** Searches WordPress.com Reader for sites, marking ones already subscribed to. */
     suspend fun searchSites(query: String): List<SiteSearchResult> =
-        wpcom.searchSites(query).let { results ->
-            // One query for every result's URLs rather than two per result.
-            val existing = sites.findByUrls(results.flatMap { listOf(it.feedUrl, it.siteUrl) })
-            fun matching(url: String) = existing.firstOrNull { it.feedUrl == url || it.siteUrl == url }
-            results.map { it.copy(subscribedSiteId = (matching(it.feedUrl) ?: matching(it.siteUrl))?.id) }
-        }
+        markSubscribed(wpcom.searchSites(query))
+
+    /**
+     * Sites WordPress.com suggests following, based on the user's likes when signed in, without
+     * any already subscribed to here, including on-device feeds.
+     */
+    suspend fun recommendedSites(): List<SiteSearchResult> =
+        markSubscribed(wpcom.recommendedSites()).filter { it.subscribedSiteId == null }
+
+    private suspend fun markSubscribed(results: List<SiteSearchResult>): List<SiteSearchResult> {
+        // One query for every result's URLs rather than two per result.
+        val existing = sites.findByUrls(results.flatMap { listOf(it.feedUrl, it.siteUrl) })
+        fun matching(url: String) = existing.firstOrNull { it.feedUrl == url || it.siteUrl == url }
+        return results.map { it.copy(subscribedSiteId = (matching(it.feedUrl) ?: matching(it.siteUrl))?.id) }
+    }
 
     /**
      * Loads posts for a site that may not be subscribed to, so it can be previewed, and returns

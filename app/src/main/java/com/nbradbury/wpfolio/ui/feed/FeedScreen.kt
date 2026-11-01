@@ -29,8 +29,10 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHost
@@ -64,7 +66,9 @@ import com.nbradbury.wpfolio.R
 import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.account.AccountSheet
+import com.nbradbury.wpfolio.ui.add.SuggestedSites
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
@@ -91,11 +95,14 @@ fun FeedScreen(
     onTab: (Tab) -> Unit,
     onSignIn: () -> Unit,
     onOpenList: (PostList) -> Unit,
+    onOpenSite: (SiteSearchResult) -> Unit,
     onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { FeedViewModel(it.repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val subscribing by viewModel.subscribing.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var showAccount by rememberSaveable { mutableStateOf(false) }
     val colors = WpFolio.colors
@@ -122,7 +129,15 @@ fun FeedScreen(
     Box(Modifier.fillMaxSize().background(colors.background).nestedScroll(pill.connection)) {
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
             when {
-                state.posts.isEmpty() -> EmptyFeed(loading = !state.loaded || refreshing, onAdd = { onTab(Tab.ADD) })
+                state.posts.isEmpty() -> EmptyFeed(
+                    loading = !state.loaded || refreshing,
+                    suggestions = suggestions,
+                    subscribing = subscribing,
+                    onShown = viewModel::loadSuggestions,
+                    onAdd = { onTab(Tab.ADD) },
+                    onOpenSite = onOpenSite,
+                    onSubscribe = viewModel::subscribe,
+                )
                 colors.isDark -> DarkFeed(state, listState, onOpenPost, { showAccount = true }, viewModel::loadMore)
                 else -> MagazineFeed(state, gridState, onOpenPost, { showAccount = true }, viewModel::loadMore)
             }
@@ -401,10 +416,35 @@ private fun PostMeta(post: PostEntity) {
     )
 }
 
+/** A new reader's first screen after signing in, so it offers sites to follow as well as Add. */
 @Composable
-private fun EmptyFeed(loading: Boolean, onAdd: () -> Unit) {
+private fun EmptyFeed(
+    loading: Boolean,
+    suggestions: List<SiteSearchResult>,
+    subscribing: String?,
+    onShown: () -> Unit,
+    onAdd: () -> Unit,
+    onOpenSite: (SiteSearchResult) -> Unit,
+    onSubscribe: (SiteSearchResult) -> Unit,
+) {
     val colors = WpFolio.colors
     SystemBarIcons(lightIcons = colors.isDark)
+    if (!loading) LaunchedEffect(Unit) { onShown() }
+    if (!loading && suggestions.isNotEmpty()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .statusBarsPadding()
+                .padding(start = 18.dp, end = 18.dp, top = 32.dp, bottom = PillClearance),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Nothing to read yet", style = ui(22f, 600, tracking = -0.02f), color = colors.text)
+            Text("Follow a few sites to fill this page.", style = body(15f), color = colors.bodyMuted)
+            SuggestedSites(suggestions, subscribing, onOpenSite, onSubscribe, Modifier.padding(top = 20.dp))
+        }
+        return
+    }
     Column(
         Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,

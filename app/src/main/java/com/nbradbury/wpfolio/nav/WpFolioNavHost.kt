@@ -13,6 +13,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.nbradbury.wpfolio.container
 import com.nbradbury.wpfolio.data.PostList
+import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.add.AddScreen
 import com.nbradbury.wpfolio.ui.article.ArticleScreen
 import com.nbradbury.wpfolio.ui.components.Tab
@@ -32,6 +33,10 @@ fun WpFolioNavHost(startDestination: Any) {
     val openPost: (String) -> Unit = { nav.navigate(ArticleRoute(it)) }
     val openSitePost: (String) -> Unit = { nav.navigate(ArticleRoute(it, PostList.SITE)) }
     val openSite: (String) -> Unit = { nav.navigate(SiteRoute(it)) }
+    // Sites already followed open as usual; others open as a preview.
+    val openSearchResult: (SiteSearchResult) -> Unit = { result ->
+        nav.navigate(result.subscribedSiteId?.let(::SiteRoute) ?: result.toPreviewRoute())
+    }
 
     NavHost(
         navController = nav,
@@ -52,6 +57,7 @@ fun WpFolioNavHost(startDestination: Any) {
                 onTab = onTab,
                 onSignIn = signIn,
                 onOpenList = { nav.navigate(PostListRoute(it)) },
+                onOpenSite = openSearchResult,
                 // Back to the first-run screen with nothing behind it. If on-device RSS
                 // subscriptions remain, onboarding forwards straight back to the feed.
                 onSignedOut = {
@@ -66,11 +72,7 @@ fun WpFolioNavHost(startDestination: Any) {
             val fromOnboarding = entry.toRoute<AddRoute>().fromOnboarding
             AddScreen(
                 onClose = { nav.popBackStack() },
-                onOpenSite = { result ->
-                    val subscribedId = result.subscribedSiteId
-                    // Sites already followed open as usual; others open as a preview.
-                    nav.navigate(if (subscribedId != null) SiteRoute(subscribedId) else result.toPreviewRoute())
-                },
+                onOpenSite = openSearchResult,
                 onSubscribed = {
                     if (fromOnboarding) {
                         nav.navigate(FeedRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
