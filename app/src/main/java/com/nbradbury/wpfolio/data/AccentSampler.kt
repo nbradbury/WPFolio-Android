@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class Accent(val color: Int, val imageRatio: Float?)
@@ -28,16 +30,20 @@ class AccentSampler(
     scope: CoroutineScope,
 ) {
     private val trigger = Channel<Unit>(Channel.CONFLATED)
+    private val draining = Mutex()
 
     init {
         scope.launch {
-            for (ignored in trigger) drain()
+            for (ignored in trigger) sampleNow()
         }
     }
 
     fun requestSampling() {
         trigger.trySend(Unit)
     }
+
+    /** Samples every post still missing an accent, returning when they're done. */
+    suspend fun sampleNow() = draining.withLock { drain() }
 
     private suspend fun drain() {
         while (true) {

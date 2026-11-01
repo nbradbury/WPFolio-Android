@@ -2,6 +2,7 @@ package com.nbradbury.wpfolio
 
 import android.app.Application
 import android.content.Context
+import androidx.work.Configuration
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -25,16 +26,19 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
-class WpFolioApp : Application(), SingletonImageLoader.Factory {
+class WpFolioApp : Application(), SingletonImageLoader.Factory, Configuration.Provider {
     lateinit var container: AppContainer
         private set
 
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        SyncWorker.schedule(this)
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader = container.imageLoader
+
+    override val workManagerConfiguration: Configuration get() = Configuration.Builder().build()
 }
 
 val Context.container: AppContainer get() = (applicationContext as WpFolioApp).container
