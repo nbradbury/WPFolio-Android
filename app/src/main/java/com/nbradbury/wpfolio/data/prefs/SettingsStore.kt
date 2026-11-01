@@ -37,6 +37,13 @@ class SettingsStore(context: Context) {
         store.edit { it[SWIPE_HINT_SEEN] = true }
     }
 
+    /** Whether the reader has signed in or chosen to continue without an account, after which onboarding is skipped. */
+    val onboarded: Flow<Boolean> = store.data.map { it[ONBOARDED] == true }.distinctUntilChanged()
+
+    suspend fun setOnboarded() {
+        store.edit { it[ONBOARDED] = true }
+    }
+
     val account: Flow<WpcomAccount?> = store.data.map { prefs ->
         prefs[TOKEN]?.let { token ->
             WpcomAccount(
@@ -96,5 +103,6 @@ class SettingsStore(context: Context) {
         val OAUTH_STATE = stringPreferencesKey("wpcom_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("wpcom_oauth_verifier")
         val SWIPE_HINT_SEEN = booleanPreferencesKey("swipe_hint_seen")
+        val ONBOARDED = booleanPreferencesKey("onboarded")
     }
 }

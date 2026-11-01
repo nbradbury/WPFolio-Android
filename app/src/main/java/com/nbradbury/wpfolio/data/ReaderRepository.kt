@@ -255,6 +255,7 @@ class ReaderRepository(
     suspend fun signIn(token: WpcomToken) {
         val account = WpcomAccount(token.accessToken, displayName = "", avatarUrl = null, expiresAt = token.expiresAt)
         settings.saveAccount(account)
+        settings.setOnboarded()
         val me = wpcom.me()
         settings.saveAccount(account.copy(displayName = me.displayName, avatarUrl = me.avatarUrl))
         refresh()

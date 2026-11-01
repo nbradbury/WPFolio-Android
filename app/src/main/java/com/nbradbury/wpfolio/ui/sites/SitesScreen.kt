@@ -79,12 +79,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class SiteFilter(val label: String) { ALL("All"), WORDPRESS("WordPress"), RSS("RSS") }
+enum class SiteFilter(val label: String) { ALL("All"), WORDPRESS("WordPress"), OTHER("Other") }
 
 data class SitesUiState(
     val sites: List<SiteWithLatest> = emptyList(),
     val total: Int = 0,
-    val rssCount: Int = 0,
     val filter: SiteFilter = SiteFilter.ALL,
 )
 
@@ -108,11 +107,10 @@ class SitesViewModel(
                 when (filter) {
                     SiteFilter.ALL -> true
                     SiteFilter.WORDPRESS -> it.site.isWordPress
-                    SiteFilter.RSS -> !it.site.isWordPress
+                    SiteFilter.OTHER -> !it.site.isWordPress
                 }
             },
             total = visible.size,
-            rssCount = visible.count { !it.site.isWordPress },
             filter = filter,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SitesUiState())
@@ -182,7 +180,7 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Sites", style = ui(32f, 700, lineHeight = 1f, tracking = -0.03f), color = colors.text)
                         Text(
-                            "${state.total} ${if (state.total == 1) "subscription" else "subscriptions"} · ${state.rssCount} via RSS",
+                            "${state.total} ${if (state.total == 1) "subscription" else "subscriptions"}",
                             style = ui(13f, 500),
                             color = colors.textSecondary,
                         )
@@ -292,10 +290,9 @@ private fun SiteRow(item: SiteWithLatest, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (!site.isWordPress) RssBadge()
             }
             Text(
-                displayUrl(if (site.isWordPress) site.siteUrl else site.feedUrl),
+                displayUrl(site.siteUrl),
                 style = ui(12.5f, 500),
                 color = colors.textSecondary,
                 maxLines = 1,
@@ -304,17 +301,4 @@ private fun SiteRow(item: SiteWithLatest, onClick: () -> Unit) {
         }
         item.latestAt?.let { Text(relativeTime(it), style = ui(12f, 500), color = colors.textSecondary) }
     }
-}
-
-@Composable
-private fun RssBadge() {
-    val colors = WpFolio.colors
-    Text(
-        "RSS",
-        style = ui(10f, 600, tracking = 0.05f),
-        color = colors.textSecondary,
-        modifier = Modifier
-            .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
-            .padding(horizontal = 4.dp, vertical = 1.dp),
-    )
 }

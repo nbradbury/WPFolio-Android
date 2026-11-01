@@ -74,15 +74,17 @@ class MainActivity : ComponentActivity() {
 }
 
 class MainViewModel(container: AppContainer) : ViewModel() {
-    /** Onboarding until the user has an account or at least one subscription; null while loading. */
+    /** Onboarding until the reader has made their first choice there; null while loading. */
     val start = MutableStateFlow<Any?>(null)
 
     init {
         viewModelScope.launch {
             val repo = container.repository
-            val hasContent = combine(repo.account, repo.siteCount) { account, count -> account != null || count > 0 }
-                .first()
-            start.value = if (hasContent) FeedRoute else OnboardingRoute
+            // An account or subscriptions also count, for installs from before the flag existed.
+            val onboarded = combine(container.settings.onboarded, repo.account, repo.siteCount) { done, account, count ->
+                done || account != null || count > 0
+            }.first()
+            start.value = if (onboarded) FeedRoute else OnboardingRoute
             // After choosing the start screen, so the splash doesn't wait on it.
             repo.pruneOrphanedPosts()
         }

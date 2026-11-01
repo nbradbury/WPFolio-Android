@@ -1,6 +1,7 @@
 package com.nbradbury.wpfolio.ui.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,10 +30,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHost
@@ -66,9 +65,7 @@ import com.nbradbury.wpfolio.R
 import com.nbradbury.wpfolio.data.PostList
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
-import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.account.AccountSheet
-import com.nbradbury.wpfolio.ui.add.SuggestedSites
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
@@ -95,14 +92,10 @@ fun FeedScreen(
     onTab: (Tab) -> Unit,
     onSignIn: () -> Unit,
     onOpenList: (PostList) -> Unit,
-    onOpenSite: (SiteSearchResult) -> Unit,
-    onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { FeedViewModel(it.repository) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
-    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
-    val subscribing by viewModel.subscribing.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var showAccount by rememberSaveable { mutableStateOf(false) }
     val colors = WpFolio.colors
@@ -131,15 +124,12 @@ fun FeedScreen(
             when {
                 state.posts.isEmpty() -> EmptyFeed(
                     loading = !state.loaded || refreshing,
-                    suggestions = suggestions,
-                    subscribing = subscribing,
-                    onShown = viewModel::loadSuggestions,
+                    signedIn = state.account != null,
+                    onSignIn = onSignIn,
                     onAdd = { onTab(Tab.ADD) },
-                    onOpenSite = onOpenSite,
-                    onSubscribe = viewModel::subscribe,
                 )
-                colors.isDark -> DarkFeed(state, listState, onOpenPost, { showAccount = true }, viewModel::loadMore)
-                else -> MagazineFeed(state, gridState, onOpenPost, { showAccount = true }, viewModel::loadMore)
+                colors.isDark -> DarkFeed(state, listState, onOpenPost, onSignIn, { showAccount = true }, viewModel::loadMore)
+                else -> MagazineFeed(state, gridState, onOpenPost, onSignIn, { showAccount = true }, viewModel::loadMore)
             }
         }
         HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) { NavPill(Tab.HOME, onSelectTab) }
@@ -154,7 +144,6 @@ fun FeedScreen(
                 showAccount = false
                 onOpenList(it)
             },
-            onSignedOut = onSignedOut,
         )
     }
 }
@@ -165,6 +154,7 @@ private fun MagazineFeed(
     state: FeedUiState,
     gridState: LazyStaggeredGridState,
     onOpenPost: (String) -> Unit,
+    onSignIn: () -> Unit,
     onAccount: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
@@ -192,7 +182,7 @@ private fun MagazineFeed(
             modifier = Modifier.fillMaxSize(),
         ) {
             item(key = "hero", span = StaggeredGridItemSpan.FullLine) {
-                Hero(hero, state.account, onAccount, { onOpenPost(hero.id) }, Modifier.bleed(14.dp))
+                Hero(hero, state.account, onSignIn, onAccount, { onOpenPost(hero.id) }, Modifier.bleed(14.dp))
             }
             itemsIndexed(tiles, key = { _, post -> post.id }) { index, post ->
                 Tile(post, index) { onOpenPost(post.id) }
@@ -208,6 +198,7 @@ private fun MagazineFeed(
 private fun Hero(
     post: PostEntity,
     account: WpcomAccount?,
+    onSignIn: () -> Unit,
     onAccount: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -230,7 +221,10 @@ private fun Hero(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(stringResource(R.string.app_name), style = ui(20f, 700, tracking = -0.02f), color = Color.White)
-            AccountAvatar(account, onAccount, border = Color.White.copy(alpha = 0.8f))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (account == null) SignInButton(onSignIn, overImage = true)
+                AccountAvatar(account, onAccount, border = Color.White.copy(alpha = 0.8f))
+            }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
@@ -305,6 +299,7 @@ private fun DarkFeed(
     state: FeedUiState,
     listState: LazyListState,
     onOpenPost: (String) -> Unit,
+    onSignIn: () -> Unit,
     onAccount: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
@@ -323,7 +318,10 @@ private fun DarkFeed(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(stringResource(R.string.app_name), style = ui(20f, 700, tracking = -0.02f), color = colors.text)
-                    AccountAvatar(state.account, onAccount, size = 30.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (state.account == null) SignInButton(onSignIn)
+                        AccountAvatar(state.account, onAccount, size = 30.dp)
+                    }
                 }
             }
             if (rail.isNotEmpty()) {
@@ -416,35 +414,11 @@ private fun PostMeta(post: PostEntity) {
     )
 }
 
-/** A new reader's first screen after signing in, so it offers sites to follow as well as Add. */
+/** Stays as-is while loading and after, so the reader chooses between Add and signing in. */
 @Composable
-private fun EmptyFeed(
-    loading: Boolean,
-    suggestions: List<SiteSearchResult>,
-    subscribing: String?,
-    onShown: () -> Unit,
-    onAdd: () -> Unit,
-    onOpenSite: (SiteSearchResult) -> Unit,
-    onSubscribe: (SiteSearchResult) -> Unit,
-) {
+private fun EmptyFeed(loading: Boolean, signedIn: Boolean, onSignIn: () -> Unit, onAdd: () -> Unit) {
     val colors = WpFolio.colors
     SystemBarIcons(lightIcons = colors.isDark)
-    if (!loading) LaunchedEffect(Unit) { onShown() }
-    if (!loading && suggestions.isNotEmpty()) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .statusBarsPadding()
-                .padding(start = 18.dp, end = 18.dp, top = 32.dp, bottom = PillClearance),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text("Nothing to read yet", style = ui(22f, 600, tracking = -0.02f), color = colors.text)
-            Text("Follow a few sites to fill this page.", style = body(15f), color = colors.bodyMuted)
-            SuggestedSites(suggestions, subscribing, onOpenSite, onSubscribe, Modifier.padding(top = 20.dp))
-        }
-        return
-    }
     Column(
         Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -456,7 +430,7 @@ private fun EmptyFeed(
             Text("Nothing to read yet", style = ui(22f, 600, tracking = -0.02f), color = colors.text)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Follow a WordPress site or any RSS feed to fill this page.",
+                "Follow a few sites to fill this page.",
                 style = body(15f),
                 color = colors.bodyMuted,
             )
@@ -467,7 +441,32 @@ private fun EmptyFeed(
             ) {
                 Text("Add a site", style = ui(15f, 600), color = colors.onInverse)
             }
+            if (!signedIn) {
+                SignInButton(onSignIn, label = "Sign in with WordPress.com", modifier = Modifier.padding(top = 12.dp))
+            }
         }
+    }
+}
+
+/** Shown whenever the reader is signed out, so signing in later is always one tap away. */
+@Composable
+private fun SignInButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "Sign in",
+    overImage: Boolean = false,
+) {
+    val colors = WpFolio.colors
+    val content = if (overImage) Color.White else colors.text
+    Box(
+        modifier
+            .clip(CircleShape)
+            .background(if (overImage) Color.Black.copy(alpha = 0.35f) else Color.Transparent)
+            .border(1.5.dp, if (overImage) Color.White.copy(alpha = 0.8f) else colors.text, CircleShape)
+            .clickable(onClickLabel = "Sign in with WordPress.com", onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    ) {
+        Text(label, style = ui(13.5f, 600), color = content)
     }
 }
 

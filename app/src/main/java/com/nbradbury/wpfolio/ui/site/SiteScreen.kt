@@ -261,7 +261,7 @@ private fun SiteInfo(
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(site.name, style = ui(25f, 700, tracking = -0.02f), color = colors.text)
             Text(
-                "${displayUrl(site.siteUrl)} · ${if (site.isWordPress) "WordPress" else "RSS"}",
+                if (site.isWordPress) "${displayUrl(site.siteUrl)} · WordPress" else displayUrl(site.siteUrl),
                 style = ui(13f, 500),
                 color = colors.textSecondary,
                 maxLines = 1,
