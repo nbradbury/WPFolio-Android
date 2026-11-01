@@ -42,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -58,10 +57,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import coil3.compose.AsyncImage
 import com.nbradbury.wpfolio.container
+import com.nbradbury.wpfolio.data.rss.OkHttpRssSource
 import com.nbradbury.wpfolio.ui.WebOnlyUriHandler
-import com.nbradbury.wpfolio.ui.components.displayUrl
+import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
@@ -138,10 +137,8 @@ private fun VideoPoster(video: Block.Video, accent: Color, onPlay: () -> Unit) {
     val poster by produceState(video.poster, video) {
         if (value == null && video.host == VideoHost.VIDEOPRESS) value = repository.videoPoster(video.id)
     }
-    Box(Modifier.fillMaxSize().background(accent).clickable(onClickLabel = "Play video", onClick = onPlay)) {
-        poster?.let {
-            AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        }
+    Box(Modifier.fillMaxSize().clickable(onClickLabel = "Play video", onClick = onPlay)) {
+        AccentImage(poster, accent, Modifier.fillMaxSize())
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f))
@@ -327,7 +324,7 @@ internal fun EmbedCard(embed: Block.Embed) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                displayUrl(embed.url).substringBefore('/'),
+                OkHttpRssSource.hostOf(embed.url),
                 style = ui(12.5f, 500),
                 color = colors.textSecondary,
                 maxLines = 1,

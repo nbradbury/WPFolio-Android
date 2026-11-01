@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -71,6 +70,7 @@ import com.nbradbury.wpfolio.ui.components.AccountAvatar
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.NavPill
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
+import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.relativeTime
@@ -184,7 +184,7 @@ private fun MagazineFeed(
             }
         }
         if (!overHero) {
-            Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.background))
+            StatusBarScrim(colors.background)
         }
     }
 }
@@ -280,13 +280,7 @@ private fun Tile(post: PostEntity, index: Int, onClick: () -> Unit) {
         if (post.imageUrl == null && post.excerpt.isNotBlank()) {
             Text(post.excerpt, style = body(13f, 1.4f), color = colors.bodyMuted, maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
-        Text(
-            "${post.siteName} · ${relativeTime(post.publishedAt)}",
-            style = ui(12f, 500),
-            color = colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        PostMeta(post)
     }
 }
 
@@ -339,7 +333,7 @@ private fun DarkFeed(
             }
             items(latest, key = { it.id }) { post -> ListRow(post) { onOpenPost(post.id) } }
         }
-        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.background))
+        StatusBarScrim(colors.background)
     }
 }
 
@@ -388,17 +382,23 @@ internal fun ListRow(post: PostEntity, onClick: () -> Unit) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    "${post.siteName} · ${relativeTime(post.publishedAt)}",
-                    style = ui(12f, 500),
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                PostMeta(post)
             }
         }
         HorizontalDivider(color = colors.divider)
     }
+}
+
+/** "Site · 2h" under a tile or list row. */
+@Composable
+private fun PostMeta(post: PostEntity) {
+    Text(
+        "${post.siteName} · ${relativeTime(post.publishedAt)}",
+        style = ui(12f, 500),
+        color = WpFolio.colors.textSecondary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable

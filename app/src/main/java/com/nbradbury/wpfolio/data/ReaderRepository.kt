@@ -17,6 +17,7 @@ import com.nbradbury.wpfolio.data.wpcom.WpcomMapper
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
 import com.nbradbury.wpfolio.data.wpcom.WpcomSource
 import com.nbradbury.wpfolio.data.wpcom.WpcomToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -26,9 +27,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import retrofit2.HttpException
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 data class LookupResult(val preview: SitePreview, val subscribedSiteId: String?)
 
@@ -43,12 +46,14 @@ class ReaderRepository(
     private val settings: SettingsStore,
     private val rss: RssSource,
     private val wpcom: WpcomSource,
-    private val onPostsChanged: () -> Unit = {},
 ) {
     private val sites = db.siteDao()
     private val posts = db.postDao()
     private val refreshMutex = Mutex()
     private var feedCursor: PageCursor? = null
+
+    /** VideoPress posters by video guid, so a poster isn't fetched again each time it scrolls into view. */
+    private val posters = ConcurrentHashMap<String, String>()
 
     val account: Flow<WpcomAccount?> = settings.account
     val siteCount: Flow<Int> = sites.observeCount()
@@ -65,36 +70,30 @@ class ReaderRepository(
 
     /** IDs of the posts in [list], in display order; SITE uses the site of [postId]. */
     suspend fun postIds(list: PostList, postId: String): List<String> = when (list) {
-        PostList.FEED -> feed().first()
-        PostList.SAVED -> saved.first()
-        PostList.LIKED -> liked.first()
-        PostList.SITE -> posts.get(postId)?.let { sitePosts(it.siteId).first() }.orEmpty()
-    }.map { it.id }
+        PostList.FEED -> posts.feedIds(FEED_LIMIT)
+        PostList.SAVED -> posts.savedIds()
+        PostList.LIKED -> posts.likedIds()
+        PostList.SITE -> posts.get(postId)?.let { posts.siteIds(it.siteId) }.orEmpty()
+    }
 
     /** Refreshes everything. Returns how many sources failed. */
     suspend fun refresh(): Int = refreshMutex.withLock {
-        var failures = 0
         val account = settings.account.first()
-        if (account?.isExpired() == true) {
-            signOut()
-            throw SessionExpiredException()
-        }
-        if (account != null) {
-            try {
+        if (account?.isExpired() == true) expireSession()
+        // WordPress.com and on-device feeds don't depend on each other, so fetch them together.
+        coroutineScope {
+            val local = async { refreshLocalSites() }
+            val wpcomFailures = if (account == null) 0 else try {
                 syncWpcom()
+                0
             } catch (e: HttpException) {
-                if (e.code() == 401 || e.code() == 403) {
-                    signOut()
-                    throw SessionExpiredException()
-                }
-                failures++
+                if (e.code() == 401 || e.code() == 403) expireSession()
+                1
             } catch (e: IOException) {
-                failures++
+                1
             }
+            wpcomFailures + local.await()
         }
-        failures += refreshLocalSites()
-        onPostsChanged()
-        failures
     }
 
     /** Loads older WordPress.com posts. Returns false when there's nothing more to load. */
@@ -104,7 +103,6 @@ class ReaderRepository(
         val page = wpcom.following(cursor)
         mergeWpcom(page.posts)
         feedCursor = page.next
-        onPostsChanged()
         return page.next != null
     }
 
@@ -118,7 +116,6 @@ class ReaderRepository(
         // Many liked posts are old, so they'd otherwise sit in the feed as unread.
         posts.merge(likes.posts.map { it.post.copy(isRead = true) }, likes.posts.associate { it.post.id to true })
         if (likes.complete) posts.unlikeAllExcept(likes.posts.map { it.post.id })
-        onPostsChanged()
     }
 
     suspend fun refreshSite(siteId: String) {
@@ -127,20 +124,20 @@ class ReaderRepository(
             Origin.WPCOM -> mergeWpcom(wpcom.sitePosts(site))
             Origin.LOCAL -> refreshLocalSite(site, useCache = false)
         }
-        onPostsChanged()
     }
 
     suspend fun lookup(input: String): LookupResult {
         val preview = rss.lookup(input)
-        val existing = sites.findByUrl(preview.feedUrl) ?: sites.findByUrl(preview.siteUrl)
-        return LookupResult(preview, existing?.id)
+        return LookupResult(preview, subscribedId(preview.feedUrl, preview.siteUrl))
     }
 
     /** Searches WordPress.com Reader for sites, marking ones already subscribed to. */
     suspend fun searchSites(query: String): List<SiteSearchResult> =
-        wpcom.searchSites(query).map { result ->
-            val existing = sites.findByUrl(result.feedUrl) ?: sites.findByUrl(result.siteUrl)
-            result.copy(subscribedSiteId = existing?.id)
+        wpcom.searchSites(query).let { results ->
+            // One query for every result's URLs rather than two per result.
+            val existing = sites.findByUrls(results.flatMap { listOf(it.feedUrl, it.siteUrl) })
+            fun matching(url: String) = existing.firstOrNull { it.feedUrl == url || it.siteUrl == url }
+            results.map { it.copy(subscribedSiteId = (matching(it.feedUrl) ?: matching(it.siteUrl))?.id) }
         }
 
     /**
@@ -155,14 +152,12 @@ class ReaderRepository(
             val loaded = runCatching { wpcom.sitePosts(wpSite) }.getOrDefault(emptyList())
             if (loaded.isNotEmpty()) {
                 mergeWpcom(loaded)
-                onPostsChanged()
                 return wpSite.id
             }
         }
-        val (feedUrl, result) = httpsFirst(target.feedUrl) { it to rss.fetch(it, null, null) }
-        val localSite = previewSite(target, Origin.LOCAL, feedUrl).copy(feedUrl = feedUrl)
+        val result = rss.fetch(target.feedUrl, null, null)
+        val localSite = previewSite(target, Origin.LOCAL, target.feedUrl)
         if (result is FetchResult.Updated) posts.merge(result.feed.items.map { it.toEntity(localSite) })
-        onPostsChanged()
         return localSite.id
     }
 
@@ -183,12 +178,13 @@ class ReaderRepository(
     suspend fun pruneOrphanedPosts() = posts.deleteOrphans()
 
     /** A VideoPress video's poster image, or null if it can't be found. */
-    suspend fun videoPoster(guid: String): String? = runCatching { wpcom.videoPoster(guid) }.getOrNull()
+    suspend fun videoPoster(guid: String): String? =
+        posters[guid] ?: runCatching { wpcom.videoPoster(guid) }.getOrNull()?.also { posters[guid] = it }
 
     /** Subscribes to a search result and returns the new site's id, if it could be identified. */
     suspend fun subscribe(result: SiteSearchResult): String? {
         if (isSignedIn()) return followOnWpcom(result.feedUrl, result.siteUrl)
-        return subscribe(httpsFirst(result.feedUrl) { rss.lookup(it) })
+        return subscribe(rss.lookup(result.feedUrl))
     }
 
     /** Subscribes and returns the new site's id, if it could be identified. */
@@ -205,17 +201,7 @@ class ReaderRepository(
         )
         sites.upsert(site)
         posts.merge(preview.items.map { it.toEntity(site) })
-        onPostsChanged()
         return site.id
-    }
-
-    /**
-     * Search often returns http:// feed URLs and cleartext is blocked, so try the https version
-     * first, falling back to [url] as given if that fails.
-     */
-    private inline fun <T> httpsFirst(url: String, block: (String) -> T): T {
-        val secure = url.replaceFirst("http://", "https://")
-        return if (secure == url) block(url) else runCatching { block(secure) }.getOrElse { block(url) }
     }
 
     private suspend fun followOnWpcom(feedUrl: String, siteUrl: String): String? {
@@ -225,15 +211,13 @@ class ReaderRepository(
         val site = subscriptions.firstOrNull { sameUrl(it.feedUrl, feedUrl) }
             ?: subscriptions.firstOrNull { sameUrl(it.siteUrl, siteUrl) }
         site?.let { runCatching { mergeWpcom(wpcom.sitePosts(it)) } }
-        onPostsChanged()
         return site?.id
     }
 
     suspend fun unsubscribe(siteId: String) {
         val site = sites.get(siteId) ?: return
         if (site.origin == Origin.WPCOM) wpcom.unfollow(site.siteUrl)
-        sites.delete(siteId)
-        posts.deleteForSite(siteId)
+        removeSite(siteId)
     }
 
     suspend fun markRead(postId: String) = posts.markRead(postId)
@@ -277,8 +261,7 @@ class ReaderRepository(
         var moved = 0
         for (site in sites.getByOrigin(Origin.LOCAL)) {
             runCatching { wpcom.follow(site.feedUrl) }.onSuccess {
-                sites.delete(site.id)
-                posts.deleteForSite(site.id)
+                removeSite(site.id)
                 moved++
             }
         }
@@ -287,6 +270,21 @@ class ReaderRepository(
     }
 
     private suspend fun isSignedIn() = settings.account.first() != null
+
+    private suspend fun expireSession(): Nothing {
+        signOut()
+        throw SessionExpiredException()
+    }
+
+    /** The id of an existing subscription to this feed or site, if there is one. */
+    private suspend fun subscribedId(feedUrl: String, siteUrl: String): String? =
+        (sites.findByUrl(feedUrl) ?: sites.findByUrl(siteUrl))?.id
+
+    /** Deletes a subscription and its posts, apart from saved and liked ones. */
+    private suspend fun removeSite(id: String) {
+        sites.delete(id)
+        posts.deleteForSite(id)
+    }
 
     private suspend fun syncWpcom() {
         replaceWpcomSites(wpcom.subscriptions())
@@ -297,10 +295,7 @@ class ReaderRepository(
 
     private suspend fun replaceWpcomSites(subscriptions: List<SiteEntity>) {
         val keep = subscriptions.map { it.id }.toSet()
-        for (stale in sites.getByOrigin(Origin.WPCOM).filter { it.id !in keep }) {
-            sites.delete(stale.id)
-            posts.deleteForSite(stale.id)
-        }
+        for (stale in sites.getByOrigin(Origin.WPCOM).filter { it.id !in keep }) removeSite(stale.id)
         sites.upsertAll(subscriptions)
     }
 
@@ -326,7 +321,7 @@ class ReaderRepository(
             lastModified = site.lastModified.takeIf { useCache },
         )
         if (result is FetchResult.Updated) {
-            posts.merge(result.feed.items.map { it.toEntity(site) })
+            posts.merge(withContext(Dispatchers.Default) { result.feed.items.map { it.toEntity(site) } })
             sites.updateCacheHeaders(site.id, result.etag, result.lastModified)
         }
     }

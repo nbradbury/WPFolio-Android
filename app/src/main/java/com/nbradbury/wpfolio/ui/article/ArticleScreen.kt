@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -100,6 +99,7 @@ import com.nbradbury.wpfolio.ui.components.PhotoViewer
 import com.nbradbury.wpfolio.ui.components.PillButton
 import com.nbradbury.wpfolio.ui.components.PillContainer
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
+import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
@@ -202,6 +202,8 @@ private fun ArticlePage(
         Box(Modifier.fillMaxSize().background(colors.articleBackground))
         return
     }
+    // Posts opened from a site preview belong to no subscription, so there's no site screen.
+    val openSite = if (siteSubscribed) ({ onOpenSite(current.siteId) }) else null
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -244,7 +246,7 @@ private fun ArticlePage(
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 120.dp), modifier = Modifier.fillMaxSize()) {
             item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
             item(key = "header") {
-                ArticleHeader(current, onOpenSite = if (siteSubscribed) ({ onOpenSite(current.siteId) }) else null)
+                ArticleHeader(current, onOpenSite = openSite)
             }
             val loaded = blocks
             if (loaded == null) {
@@ -263,10 +265,10 @@ private fun ArticlePage(
         }
 
         if (!overHero) {
-            Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(colors.articleBackground))
+            StatusBarScrim(colors.articleBackground)
         }
         ProgressBar(listState, heroPx, statusBarPx, current.accentColor)
-        TopButtons(current, onBack, onOpenSite.takeIf { siteSubscribed })
+        TopButtons(current, onBack, openSite)
 
         HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) {
             PillContainer {
@@ -371,11 +373,11 @@ private fun readTime(wordCount: Int): String? =
 @Composable
 private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
-    val links = TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline))
+    val links = remember(colors.text) { TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline)) }
     val padded = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 7.dp)
     when (block) {
         is Block.Paragraph -> Text(
-            AnnotatedString.fromHtml(block.html, linkStyles = links),
+            rememberHtml(block.html, links),
             style = body(BODY_SIZE, lineHeight = 1.62f),
             color = colors.body,
             modifier = padded,
@@ -404,7 +406,7 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
                     .clickable(onClickLabel = "View image") { onImageClick(block.url) },
             )
             block.caption?.let {
-                Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
+                Caption(it)
             }
         }
         is Block.Gallery -> Gallery(block, accent, onImageClick)
@@ -412,7 +414,7 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
             Column(padded.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.width(40.dp).height(3.dp).clip(CircleShape).background(accent))
                 Text(
-                    AnnotatedString.fromHtml(block.html, linkStyles = links),
+                    rememberHtml(block.html, links),
                     style = ui(BODY_SIZE * 1.3f, 600, lineHeight = 1.3f, tracking = -0.01f),
                     color = colors.text,
                     textAlign = TextAlign.Center,
@@ -425,7 +427,7 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
                 Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
                 Column(Modifier.padding(start = 16.dp)) {
                     Text(
-                        AnnotatedString.fromHtml(block.html, linkStyles = links),
+                        rememberHtml(block.html, links),
                         style = body(BODY_SIZE * 1.06f, lineHeight = 1.55f).copy(fontStyle = FontStyle.Italic),
                         color = colors.body,
                     )
@@ -436,13 +438,13 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
         is Block.Table -> Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             TableGrid(block, links, Modifier.padding(horizontal = 14.dp))
             block.caption?.let {
-                Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
+                Caption(it)
             }
         }
         is Block.ListItem -> Row(padded.padding(start = (block.depth * 18).dp)) {
             val style = body(BODY_SIZE, lineHeight = 1.62f)
             Text(block.marker, style = style, color = colors.textSecondary, modifier = Modifier.width(24.dp))
-            Text(AnnotatedString.fromHtml(block.html, linkStyles = links), style = style, color = colors.body)
+            Text(rememberHtml(block.html, links), style = style, color = colors.body)
         }
         is Block.Code -> Text(
             block.text,
@@ -489,7 +491,7 @@ private fun Gallery(block: Block.Gallery, accent: Color, onImageClick: (String) 
             }
         }
         block.caption?.let {
-            Text(it, style = ui(13f, 500), color = colors.textSecondary, modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp))
+            Caption(it)
         }
     }
 }
@@ -513,6 +515,21 @@ private fun NextPost(postId: String, onClick: () -> Unit) {
         )
         ListRow(post, onClick)
     }
+}
+
+/** Converted once per block rather than on every recomposition or scroll back into view. */
+@Composable
+private fun rememberHtml(html: String, links: TextLinkStyles): AnnotatedString =
+    remember(html, links) { AnnotatedString.fromHtml(html, linkStyles = links) }
+
+@Composable
+private fun Caption(text: String) {
+    Text(
+        text,
+        style = ui(13f, 500),
+        color = WpFolio.colors.textSecondary,
+        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp),
+    )
 }
 
 @Composable
@@ -540,7 +557,7 @@ private fun TableGrid(table: Block.Table, links: TextLinkStyles, modifier: Modif
                 table.rows.forEachIndexed { r, row ->
                     repeat(columns) { c ->
                         Text(
-                            AnnotatedString.fromHtml(row.getOrNull(c).orEmpty(), linkStyles = links),
+                            rememberHtml(row.getOrNull(c).orEmpty(), links),
                             style = ui(14f, if (r < table.headerRows) 600 else 400, lineHeight = 1.4f),
                             color = colors.body,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
@@ -652,7 +669,7 @@ private fun ProgressBar(listState: LazyListState, heroPx: Int, statusBarPx: Int,
 
 
 @Composable
-private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((String) -> Unit)?) {
+private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: (() -> Unit)?) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -676,7 +693,7 @@ private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: ((Strin
                 if (onOpenSite != null) {
                     DropdownMenuItem(text = { Text("View ${post.siteName}") }, onClick = {
                         menu = false
-                        onOpenSite(post.siteId)
+                        onOpenSite()
                     })
                 }
             }

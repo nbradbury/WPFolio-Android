@@ -129,10 +129,12 @@ object FeedParser {
     fun wordCount(text: String): Int = text.split(WHITESPACE).count { it.isNotEmpty() }
 
     fun firstContentImage(html: String, baseUrl: String): String? =
-        Jsoup.parse(html, baseUrl).select("img[src]").firstOrNull { img ->
-            img.attr("width") != "1" && img.attr("height") != "1" &&
-                TRACKERS.none { it in img.attr("src") }
-        }?.absUrl("src")?.takeIf { it.isNotEmpty() }
+        Jsoup.parse(html, baseUrl).select("img[src]").firstOrNull { !isTrackingImage(it, it.attr("src")) }
+            ?.absUrl("src")?.takeIf { it.isNotEmpty() }
+
+    /** One-pixel images and known tracker hosts are analytics beacons, not content. */
+    fun isTrackingImage(img: Element, src: String): Boolean =
+        img.attr("width") == "1" || img.attr("height") == "1" || TRACKERS.any { it in src }
 
     private fun resolve(base: String, url: String): String =
         runCatching { java.net.URI(base).resolve(url.trim()).toString() }.getOrDefault(url)

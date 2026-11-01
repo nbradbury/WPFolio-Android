@@ -10,6 +10,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nbradbury.wpfolio.data.SessionExpiredException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Refreshes subscriptions, likes and accent colours while the app isn't open, so the feed is
@@ -20,13 +22,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val container = applicationContext.container
         try {
-            container.repository.refresh()
+            coroutineScope {
+                // Independent of the refresh, and best effort: the Liked screen syncs again when opened.
+                launch { runCatching { container.repository.syncLiked() } }
+                container.repository.refresh()
+            }
         } catch (e: SessionExpiredException) {
             // Signed out now; there's nothing to sync until the user signs in again.
             return Result.success()
         }
-        // Best effort: the Liked screen syncs again when opened.
-        runCatching { container.repository.syncLiked() }
         // Sampling runs in the app's scope, which can be killed once this returns.
         container.accentSampler.sampleNow()
         return Result.success()

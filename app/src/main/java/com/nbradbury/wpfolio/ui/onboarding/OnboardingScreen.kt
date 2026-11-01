@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -142,7 +141,6 @@ private fun Mosaic() {
         animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Reverse),
         label = "drift",
     )
-    val density = LocalDensity.current
     // The rotated mosaic is wider than the screen so its corners never show.
     BoxWithConstraints {
         Row(
@@ -159,7 +157,7 @@ private fun Mosaic() {
                     Modifier
                         .weight(1f)
                         .offset(y = offset)
-                        .graphicsLayer { translationY = with(density) { (drift * 48.dp.toPx()) * direction } },
+                        .graphicsLayer { translationY = drift * 48.dp.toPx() * direction },
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     // Repeat the column so the drift never exposes its ends.

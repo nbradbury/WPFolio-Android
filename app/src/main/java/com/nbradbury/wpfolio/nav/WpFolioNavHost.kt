@@ -115,12 +115,14 @@ fun WpFolioNavHost(startDestination: Any) {
 }
 
 private fun NavHostController.selectTab(tab: Tab) {
-    when (tab) {
-        Tab.ADD -> navigate(AddRoute())
-        Tab.HOME, Tab.SITES -> navigate(if (tab == Tab.HOME) FeedRoute else SitesRoute) {
-            popUpTo<FeedRoute>()
-            launchSingleTop = true
-        }
+    val route: Any = when (tab) {
+        Tab.ADD -> return navigate(AddRoute())
+        Tab.HOME -> FeedRoute
+        Tab.SITES -> SitesRoute
+    }
+    navigate(route) {
+        popUpTo<FeedRoute>()
+        launchSingleTop = true
     }
 }
 

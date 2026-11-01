@@ -6,10 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -42,7 +46,7 @@ import com.nbradbury.wpfolio.ui.theme.ui
 
 /** The post's sampled accent, or a stable stand-in until sampling finishes. */
 val PostEntity.accentColor: Color
-    get() = Color(accent ?: AccentSampler.fallbackAccent(imageUrl ?: siteId))
+    get() = accentFor(accent, imageUrl ?: siteId)
 
 fun accentFor(accent: Int?, key: String): Color = Color(accent ?: AccentSampler.fallbackAccent(key))
 
@@ -125,8 +129,8 @@ enum class Tab { HOME, SITES, ADD }
 
 /** The single floating navigation pill. */
 @Composable
-fun NavPill(current: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
-    PillContainer(modifier) {
+fun NavPill(current: Tab, onSelect: (Tab) -> Unit) {
+    PillContainer {
         PillButton(Icons.Rounded.Home, "Home", selected = current == Tab.HOME) { onSelect(Tab.HOME) }
         PillButton(Icons.AutoMirrored.Rounded.FormatListBulleted, "Sites", selected = current == Tab.SITES) {
             onSelect(Tab.SITES)
@@ -136,9 +140,9 @@ fun NavPill(current: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier
 }
 
 @Composable
-fun PillContainer(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun PillContainer(content: @Composable () -> Unit) {
     Row(
-        modifier
+        Modifier
             .navigationBarsPadding()
             .padding(bottom = 16.dp)
             .clip(CircleShape)
@@ -185,9 +189,15 @@ fun OverlayButton(icon: ImageVector, label: String, modifier: Modifier = Modifie
     }
 }
 
+/** Covers the status bar once content scrolls under it. */
+@Composable
+fun StatusBarScrim(color: Color) {
+    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(color))
+}
+
 /** "now", "5m", "2h", "3d", "1w", then a short date. */
-fun relativeTime(epochMillis: Long, now: Long = System.currentTimeMillis()): String {
-    val minutes = (now - epochMillis) / 60_000
+fun relativeTime(epochMillis: Long): String {
+    val minutes = (System.currentTimeMillis() - epochMillis) / 60_000
     return when {
         minutes < 1 -> "now"
         minutes < 60 -> "${minutes}m"

@@ -157,9 +157,10 @@ class ReaderRepositoryTest {
     }
 
     @Test
-    fun `signed out, subscribing to a search result fetches the feed, trying https first`() = runBlocking {
+    fun `signed out, subscribing to a search result fetches the feed on device`() = runBlocking {
+        // The HTTP client upgrades http:// to https, so the repository uses the URL as given.
         val id = repository.subscribe(searchResult("http://b.test/feed"))
-        assertEquals(listOf("https://b.test/feed", "http://b.test/feed"), rss.lookups)
+        assertEquals(listOf("http://b.test/feed"), rss.lookups)
         assertEquals(Origin.LOCAL, db.siteDao().get(id!!)!!.origin)
     }
 
@@ -177,11 +178,11 @@ class ReaderRepositoryTest {
     }
 
     @Test
-    fun `previewing a plain feed fetches it on device, trying https first`() = runBlocking {
+    fun `previewing a plain feed fetches it on device`() = runBlocking {
         rss.result = FetchResult.Updated(feed(listOf(item("1", "Feed post"))), etag = null, lastModified = null)
         val siteId = repository.loadPreview(searchResult("http://b.test/feed"))
 
-        assertEquals(listOf("https://b.test/feed", "http://b.test/feed"), rss.fetches)
+        assertEquals(listOf("http://b.test/feed"), rss.fetches)
         assertEquals("http://b.test/feed", siteId)
         assertEquals(listOf("Feed post"), repository.sitePosts(siteId).first().map { it.title })
     }
