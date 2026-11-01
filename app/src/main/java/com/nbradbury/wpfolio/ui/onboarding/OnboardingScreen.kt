@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +47,7 @@ import com.nbradbury.wpfolio.ui.theme.DarkColors
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
+import kotlinx.coroutines.launch
 
 private data class Tile(val url: String, val accent: Color, val height: Dp)
 
@@ -72,12 +74,12 @@ private val SAMPLE_COLUMNS = listOf(
 
 /** 1i: a drifting image mosaic, with two clear ways in. */
 @Composable
-fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedIn: () -> Unit) {
+fun OnboardingScreen(onSignIn: () -> Unit, onContinue: () -> Unit, onSignedIn: () -> Unit) {
     val context = LocalContext.current
     val account by context.container.repository.account.collectAsStateWithLifecycle(initialValue = null)
-    val siteCount by context.container.repository.siteCount.collectAsStateWithLifecycle(initialValue = 0)
-    // Signing in, or subscribing from Add (including a site preview opened from there), moves on.
-    LaunchedEffect(account, siteCount) { if (account != null || siteCount > 0) onSignedIn() }
+    val scope = rememberCoroutineScope()
+    // Sign-in finishes in a browser redirect, so move on once the account appears.
+    LaunchedEffect(account) { if (account != null) onSignedIn() }
     SystemBarIcons(lightIcons = true, lightNavIcons = true)
 
     val colors = DarkColors
@@ -122,7 +124,11 @@ fun OnboardingScreen(onSignIn: () -> Unit, onStartWithRss: () -> Unit, onSignedI
                         .height(52.dp)
                         .clip(CircleShape)
                         .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                        .clickable(onClick = onStartWithRss),
+                        .clickable {
+                            // Chosen once: later launches go straight to the feed.
+                            scope.launch { context.container.settings.setOnboarded() }
+                            onContinue()
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("Continue without an account", style = ui(15.5f, 600), color = colors.text)

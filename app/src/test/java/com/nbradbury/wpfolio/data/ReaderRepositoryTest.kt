@@ -20,6 +20,7 @@ import com.nbradbury.wpfolio.data.wpcom.WpcomMe
 import com.nbradbury.wpfolio.data.wpcom.WpcomPage
 import com.nbradbury.wpfolio.data.wpcom.WpcomPost
 import com.nbradbury.wpfolio.data.wpcom.WpcomSource
+import com.nbradbury.wpfolio.data.wpcom.WpcomToken
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -275,6 +276,13 @@ class ReaderRepositoryTest {
         repository.syncLiked()
 
         assertEquals(setOf("Older like", "Newer like"), repository.liked.first().map { it.title }.toSet())
+    }
+
+    @Test
+    fun `signing in counts as onboarding, so signing out later doesn't bring it back`() = runBlocking {
+        repository.signIn(WpcomToken("token", expiresAt = null))
+        repository.signOut()
+        assertTrue(settings.onboarded.first())
     }
 
     @Test

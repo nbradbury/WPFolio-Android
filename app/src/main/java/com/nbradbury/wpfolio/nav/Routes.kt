@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object OnboardingRoute
 @Serializable data object FeedRoute
 @Serializable data object SitesRoute
-@Serializable data class AddRoute(val fromOnboarding: Boolean = false)
+@Serializable data object AddRoute
 @Serializable data class ArticleRoute(val postId: String, val list: PostList = PostList.FEED)
 @Serializable data class SiteRoute(val siteId: String)
 

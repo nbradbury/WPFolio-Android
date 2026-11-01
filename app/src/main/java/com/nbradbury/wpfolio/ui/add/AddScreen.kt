@@ -212,8 +212,7 @@ fun AddScreen(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Follow anything", style = ui(30f, 700, lineHeight = 1.05f, tracking = -0.03f), color = colors.text)
             Text(
-                "Search for a site by name or topic, or paste the address of a WordPress site, " +
-                    "an RSS or Atom feed, or any page that links to one.",
+                "Search for a site by name or topic, or paste the address of any blog or news site.",
                 style = body(14.5f, lineHeight = 1.45f),
                 color = colors.bodyMuted,
             )
@@ -352,7 +351,7 @@ private fun PreviewCard(found: AddState.Found, subscribing: Boolean, onOpen: () 
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    if (preview.isWordPress) "WORDPRESS SITE FOUND" else "RSS FEED FOUND",
+                    if (preview.isWordPress) "WORDPRESS SITE FOUND" else "SITE FOUND",
                     style = ui(11.5f, 600, tracking = 0.06f),
                     color = labelColor,
                 )

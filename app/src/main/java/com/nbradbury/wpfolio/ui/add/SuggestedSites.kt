@@ -30,8 +30,8 @@ import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
 
 /**
- * WordPress.com's suggestions, shown on Add before a search and on an empty feed. [subscribing]
- * is the feed URL being subscribed to, if any.
+ * WordPress.com's suggestions, shown on Add before a search. [subscribing] is the feed URL being
+ * subscribed to, if any.
  */
 @Composable
 internal fun SuggestedSites(

@@ -47,7 +47,8 @@ fun WpFolioNavHost(startDestination: Any) {
         composable<OnboardingRoute> {
             OnboardingScreen(
                 onSignIn = signIn,
-                onStartWithRss = { nav.navigate(AddRoute(fromOnboarding = true)) },
+                // The empty feed offers suggestions, sign-in and Add, so the reader chooses from there.
+                onContinue = { nav.navigate(FeedRoute) { popUpTo<OnboardingRoute> { inclusive = true } } },
                 onSignedIn = { nav.navigate(FeedRoute) { popUpTo<OnboardingRoute> { inclusive = true } } },
             )
         }
@@ -57,29 +58,16 @@ fun WpFolioNavHost(startDestination: Any) {
                 onTab = onTab,
                 onSignIn = signIn,
                 onOpenList = { nav.navigate(PostListRoute(it)) },
-                onOpenSite = openSearchResult,
-                // Back to the first-run screen with nothing behind it. If on-device RSS
-                // subscriptions remain, onboarding forwards straight back to the feed.
-                onSignedOut = {
-                    nav.navigate(OnboardingRoute) { popUpTo(nav.graph.id) { inclusive = true } }
-                },
             )
         }
         composable<SitesRoute> {
-            SitesScreen(onOpenSite = openSite, onTab = onTab, onAdd = { nav.navigate(AddRoute()) })
+            SitesScreen(onOpenSite = openSite, onTab = onTab, onAdd = { nav.navigate(AddRoute) })
         }
-        composable<AddRoute> { entry ->
-            val fromOnboarding = entry.toRoute<AddRoute>().fromOnboarding
+        composable<AddRoute> {
             AddScreen(
                 onClose = { nav.popBackStack() },
                 onOpenSite = openSearchResult,
-                onSubscribed = {
-                    if (fromOnboarding) {
-                        nav.navigate(FeedRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
-                    } else {
-                        nav.popBackStack()
-                    }
-                },
+                onSubscribed = { nav.popBackStack() },
             )
         }
         composable<ArticleRoute> { entry ->
@@ -118,7 +106,7 @@ fun WpFolioNavHost(startDestination: Any) {
 
 private fun NavHostController.selectTab(tab: Tab) {
     val route: Any = when (tab) {
-        Tab.ADD -> return navigate(AddRoute())
+        Tab.ADD -> return navigate(AddRoute)
         Tab.HOME -> FeedRoute
         Tab.SITES -> SitesRoute
     }

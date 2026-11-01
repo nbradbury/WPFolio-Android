@@ -42,12 +42,8 @@ class AccountViewModel(private val repository: ReaderRepository) : ViewModel() {
     val account = repository.account.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val localCount = repository.localSiteCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** [onDone] runs once the account is gone, so the next screen sees the user signed out. */
-    fun signOut(onDone: () -> Unit) {
-        viewModelScope.launch {
-            repository.signOut()
-            onDone()
-        }
+    fun signOut() {
+        viewModelScope.launch { repository.signOut() }
     }
 
     fun moveLocalFeeds(onDone: (Int) -> Unit) {
@@ -61,7 +57,6 @@ fun AccountSheet(
     onDismiss: () -> Unit,
     onSignIn: () -> Unit,
     onOpenList: (PostList) -> Unit,
-    onSignedOut: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel { AccountViewModel(it.repository) }
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -85,7 +80,7 @@ fun AccountSheet(
                     }
                 }
                 if (localCount > 0) {
-                    SheetRow(Icons.Rounded.CloudUpload, "Move $localCount RSS ${if (localCount == 1) "feed" else "feeds"} to WordPress.com") {
+                    SheetRow(Icons.Rounded.CloudUpload, "Move $localCount ${if (localCount == 1) "site" else "sites"} to WordPress.com") {
                         viewModel.moveLocalFeeds { moved ->
                             Toast.makeText(context, "Moved $moved to WordPress.com", Toast.LENGTH_SHORT).show()
                         }
@@ -102,7 +97,7 @@ fun AccountSheet(
             if (current != null) {
                 SheetRow(Icons.AutoMirrored.Rounded.Logout, "Sign out") {
                     onDismiss()
-                    viewModel.signOut(onSignedOut)
+                    viewModel.signOut()
                 }
             }
         }

@@ -63,7 +63,7 @@ class OkHttpRssSource(private val client: OkHttpClient) : RssSource {
                 fallbackSiteUrl = finalUrl,
             )
         }
-        throw LookupException("No RSS or Atom feed found at this address")
+        throw LookupException("Couldn't find anything to follow at this address")
     }
 
     private fun preview(
