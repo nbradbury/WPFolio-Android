@@ -155,8 +155,10 @@ class ReaderRepository(
                 return wpSite.id
             }
         }
-        val result = rss.fetch(target.feedUrl, null, null)
-        val localSite = previewSite(target, Origin.LOCAL, target.feedUrl)
+        // Stored under the https URL that subscribing records, so the preview's posts carry over.
+        val feedUrl = HttpsUpgradeInterceptor.upgrade(target.feedUrl)
+        val result = rss.fetch(feedUrl, null, null)
+        val localSite = previewSite(target, Origin.LOCAL, feedUrl).copy(feedUrl = feedUrl)
         if (result is FetchResult.Updated) posts.merge(result.feed.items.map { it.toEntity(localSite) })
         return localSite.id
     }

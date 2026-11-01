@@ -18,13 +18,7 @@ class HttpsUpgradeInterceptorTest {
             // Stands in for the network: records the request and answers it.
             .addInterceptor { chain ->
                 sent += chain.request().url.toString()
-                Response.Builder()
-                    .request(chain.request())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body("".toResponseBody())
-                    .build()
+                response(chain.request(), 200)
             }
             .build()
 
@@ -34,4 +28,25 @@ class HttpsUpgradeInterceptorTest {
 
         assertEquals(listOf("https://a.test/feed", "https://b.test/feed", "https://c.test:8080/x?y=1"), sent)
     }
+
+    @Test
+    fun `upgrades redirects to http`() {
+        // As a network interceptor it sees each redirect before OkHttp follows it.
+        val client = OkHttpClient.Builder()
+            .addInterceptor(HttpsUpgradeInterceptor())
+            .addInterceptor { chain -> response(chain.request(), 301).newBuilder().header("Location", "HTTP://www.a.test/feed").build() }
+            .build()
+
+        client.newCall(Request.Builder().url("https://a.test/feed").build()).execute().use {
+            assertEquals("https://www.a.test/feed", it.header("Location"))
+        }
+    }
+
+    private fun response(request: Request, code: Int) = Response.Builder()
+        .request(request)
+        .protocol(Protocol.HTTP_1_1)
+        .code(code)
+        .message("")
+        .body("".toResponseBody())
+        .build()
 }

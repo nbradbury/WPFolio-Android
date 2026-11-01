@@ -1,6 +1,7 @@
 package com.nbradbury.wpfolio.data
 
 import android.content.Context
+import android.util.Log
 import androidx.core.graphics.ColorUtils
 import androidx.palette.graphics.Palette
 import coil3.ImageLoader
@@ -9,8 +10,12 @@ import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
 import com.nbradbury.wpfolio.data.db.PostDao
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -35,7 +40,16 @@ class AccentSampler(
     init {
         // Room already knows which posts lack an accent, so watch that rather than every write path.
         scope.launch {
-            postDao.observeNeedingAccentCount().filter { it > 0 }.conflate().collect { sampleNow() }
+            postDao.observeNeedingAccentCount().filter { it > 0 }.conflate().collect {
+                // A failed pass (a database error, say) mustn't crash the app; the next write retries.
+                try {
+                    sampleNow()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Accent sampling failed", e)
+                }
+            }
         }
     }
 
@@ -46,7 +60,14 @@ class AccentSampler(
         while (true) {
             val batch = postDao.imagesNeedingAccent(BATCH)
             if (batch.isEmpty()) return
-            postDao.setAccents(batch.associateWith { url -> sample(url) ?: Accent(fallbackAccent(url), null) })
+            // A few at a time, each group saved as it finishes: colours show up quickly, a
+            // cancelled pass keeps what it sampled, and observers still re-query once per group.
+            for (group in batch.chunked(PARALLEL)) {
+                val accents = coroutineScope {
+                    group.map { url -> async { url to (sample(url) ?: Accent(fallbackAccent(url), null)) } }.awaitAll()
+                }
+                postDao.setAccents(accents.toMap())
+            }
         }
     }
 
@@ -70,6 +91,8 @@ class AccentSampler(
 
     companion object {
         private const val BATCH = 12
+        private const val PARALLEL = 4
+        private const val TAG = "AccentSampler"
         private const val SAMPLE_SIZE = 96
         private const val MAX_LUMINANCE = 0.12
 
