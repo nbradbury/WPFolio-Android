@@ -60,6 +60,7 @@ import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentFor
 import com.nbradbury.wpfolio.ui.components.displayUrl
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.components.relativeTime
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.Destructive
@@ -173,7 +174,10 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
             item(key = "header") {
                 Row(
-                    Modifier.statusBarsPadding().fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 4.dp),
+                    Modifier
+                        .statusBarsPadding()
+                        .readableWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom,
                 ) {
@@ -198,7 +202,7 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
             }
             item(key = "filters") {
                 Row(
-                    Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 6.dp),
+                    Modifier.readableWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     SiteFilter.entries.forEach { filter ->
@@ -207,8 +211,10 @@ fun SitesScreen(onOpenSite: (String) -> Unit, onTab: (Tab) -> Unit, onAdd: () ->
                 }
             }
             items(state.sites, key = { it.site.id }) { item ->
-                SwipeToUnsubscribe(item, onUnsubscribe = { unsubscribe(item) }) {
-                    SiteRow(item) { onOpenSite(item.site.id) }
+                Box(Modifier.readableWidth()) {
+                    SwipeToUnsubscribe(item, onUnsubscribe = { unsubscribe(item) }) {
+                        SiteRow(item) { onOpenSite(item.site.id) }
+                    }
                 }
             }
         }

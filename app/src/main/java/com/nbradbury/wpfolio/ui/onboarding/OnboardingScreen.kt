@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nbradbury.wpfolio.R
 import com.nbradbury.wpfolio.container
 import com.nbradbury.wpfolio.ui.components.AccentImage
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.theme.DarkColors
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.body
@@ -97,6 +98,7 @@ fun OnboardingScreen(onSignIn: () -> Unit, onContinue: () -> Unit, onSignedIn: (
             Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
+                .readableWidth(max = 560.dp)
                 .padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

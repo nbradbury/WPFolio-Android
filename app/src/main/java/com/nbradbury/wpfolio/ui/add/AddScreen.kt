@@ -64,6 +64,7 @@ import com.nbradbury.wpfolio.data.rss.OkHttpRssSource
 import com.nbradbury.wpfolio.data.wpcom.SiteSearchResult
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.accentFor
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.theme.Destructive
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
@@ -203,6 +204,7 @@ fun AddScreen(
             .navigationBarsPadding()
             .imePadding()
             .verticalScroll(rememberScrollState())
+            .readableWidth()
             .padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
