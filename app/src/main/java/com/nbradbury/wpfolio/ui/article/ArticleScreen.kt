@@ -102,6 +102,7 @@ import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.feed.ListRow
 import com.nbradbury.wpfolio.ui.openInBrowser
@@ -246,7 +247,7 @@ private fun ArticlePage(
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 120.dp), modifier = Modifier.fillMaxSize()) {
             item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
             item(key = "header") {
-                ArticleHeader(current, onOpenSite = openSite)
+                Box(Modifier.readableWidth()) { ArticleHeader(current, onOpenSite = openSite) }
             }
             val loaded = blocks
             if (loaded == null) {
@@ -256,11 +257,16 @@ private fun ArticlePage(
                     }
                 }
             } else {
-                items(loaded) { BlockView(it, current.accentColor, isCurrent, onImageClick = openImage) }
-                item(key = "footer") {
-                    ArticleFooter(current, summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) })
+                items(loaded) {
+                    Box(Modifier.readableWidth()) {
+                        BlockView(it, current.accentColor, isCurrent, onImageClick = openImage)
+                    }
                 }
-                nextPostId?.let { item(key = "next") { NextPost(it, onNext) } }
+                item(key = "footer") {
+                    val summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) }
+                    Box(Modifier.readableWidth()) { ArticleFooter(current, summaryOnly) }
+                }
+                nextPostId?.let { item(key = "next") { Box(Modifier.readableWidth()) { NextPost(it, onNext) } } }
             }
         }
 

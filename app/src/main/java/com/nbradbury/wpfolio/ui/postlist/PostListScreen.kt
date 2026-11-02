@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nbradbury.wpfolio.container
 import com.nbradbury.wpfolio.data.PostList
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.feed.ListRow
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
@@ -80,7 +81,9 @@ fun PostListScreen(list: PostList, onBack: () -> Unit, onOpenPost: (String) -> U
             }
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.navigationBarsPadding()) {
-                items(loaded, key = { it.id }) { post -> ListRow(post) { onOpenPost(post.id) } }
+                items(loaded, key = { it.id }) { post ->
+                    Box(Modifier.readableWidth()) { ListRow(post) { onOpenPost(post.id) } }
+                }
             }
         }
     }

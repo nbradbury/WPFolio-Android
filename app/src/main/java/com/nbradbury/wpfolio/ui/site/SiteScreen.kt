@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,10 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,12 +69,15 @@ import com.nbradbury.wpfolio.data.db.SiteEntity
 import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.OverlayButton
 import com.nbradbury.wpfolio.ui.components.PhotoViewer
+import com.nbradbury.wpfolio.ui.components.ReadableWidth
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.ViewerImage
 import com.nbradbury.wpfolio.ui.components.accentColor
 import com.nbradbury.wpfolio.ui.components.accentFor
+import com.nbradbury.wpfolio.ui.components.bleed
 import com.nbradbury.wpfolio.ui.components.displayUrl
+import com.nbradbury.wpfolio.ui.components.gridColumns
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.body
@@ -174,25 +179,29 @@ internal fun SiteLayout(
     val covers = imagePosts.take(3).map { it.imageUrl!! to it.accentColor }
     val viewerImages = remember(imagePosts) { imagePosts.map { ViewerImage(it.imageUrl!!, it.title) } }
 
-    Box(Modifier.fillMaxSize().background(colors.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(colors.background)) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+            columns = GridCells.Fixed(gridColumns(maxWidth)),
             state = gridState,
-            contentPadding = PaddingValues(bottom = 40.dp),
+            contentPadding = PaddingValues(start = GridMargin, end = GridMargin, bottom = 40.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) { Cover(covers, accent) { viewerIndex = it } }
+            // The cover, info and empty state run edge to edge, past the grid's margins.
+            item(key = "cover", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.bleed(GridMargin)) { Cover(covers, accent) { viewerIndex = it } }
+            }
             item(key = "info", span = { GridItemSpan(maxLineSpan) }) {
-                SiteInfo(site, accent, subscribed, busy, onSubscriptionClick)
+                Box(Modifier.bleed(GridMargin)) { SiteInfo(site, accent, subscribed, busy, onSubscriptionClick) }
             }
             if (posts.isEmpty() && emptyContent != null) {
-                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { emptyContent() }
+                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.bleed(GridMargin)) { emptyContent() }
+                }
             }
-            itemsIndexed(posts, key = { _, post -> post.id }) { index, post ->
-                val edge = if (index % 2 == 0) Modifier.padding(start = 18.dp) else Modifier.padding(end = 18.dp)
-                GridTile(post, edge) { onOpenPost(post.id) }
+            items(posts, key = { it.id }) { post ->
+                GridTile(post) { onOpenPost(post.id) }
             }
         }
         if (!overCover) {
@@ -247,7 +256,11 @@ private fun SiteInfo(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var menu by remember { mutableStateOf(false) }
-    Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Capped so the description and Subscribe button don't stretch across a tablet.
+    Column(
+        Modifier.widthIn(max = ReadableWidth).padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         SiteAvatar(
             imageUrl = site.iconUrl,
             name = site.name,
@@ -313,9 +326,9 @@ private fun SiteInfo(
 }
 
 @Composable
-private fun GridTile(post: PostEntity, modifier: Modifier, onClick: () -> Unit) {
+private fun GridTile(post: PostEntity, onClick: () -> Unit) {
     val colors = WpFolio.colors
-    Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(Modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         AccentImage(post.imageUrl, post.accentColor, Modifier.fillMaxWidth().aspectRatio(1f), shape = RoundedCornerShape(14.dp), placeholder = post.siteName)
         Text(post.title, style = ui(14f, 600, lineHeight = 1.25f), color = colors.text, maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
@@ -327,3 +340,6 @@ private fun Modifier.overlapAbove(amount: Dp) = layout { measurable, constraints
     val shift = amount.roundToPx()
     layout(placeable.width, placeable.height - shift) { placeable.place(0, -shift) }
 }
+
+/** The grid's side margins; its full-width sections bleed past them. */
+private val GridMargin = 18.dp

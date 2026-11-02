@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -54,11 +56,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nbradbury.wpfolio.R
@@ -70,10 +70,14 @@ import com.nbradbury.wpfolio.ui.components.AccentImage
 import com.nbradbury.wpfolio.ui.components.AccountAvatar
 import com.nbradbury.wpfolio.ui.components.HideOnScroll
 import com.nbradbury.wpfolio.ui.components.NavPill
+import com.nbradbury.wpfolio.ui.components.ReadableWidth
 import com.nbradbury.wpfolio.ui.components.SiteAvatar
 import com.nbradbury.wpfolio.ui.components.StatusBarScrim
 import com.nbradbury.wpfolio.ui.components.Tab
 import com.nbradbury.wpfolio.ui.components.accentColor
+import com.nbradbury.wpfolio.ui.components.bleed
+import com.nbradbury.wpfolio.ui.components.gridColumns
+import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.components.relativeTime
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
@@ -172,9 +176,9 @@ private fun MagazineFeed(
     SystemBarIcons(lightIcons = overHero)
     LoadMoreEffect({ gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }, tiles.size, onLoadMore)
 
-    Box {
+    BoxWithConstraints {
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(2),
+            columns = StaggeredGridCells.Fixed(gridColumns(maxWidth)),
             state = gridState,
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = PillClearance),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -227,7 +231,10 @@ private fun Hero(
             }
         }
         Column(
-            Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            Modifier
+                .align(Alignment.BottomStart)
+                .widthIn(max = ReadableWidth)
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -336,7 +343,7 @@ private fun DarkFeed(
             }
             item(key = "latest-header") {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 24.dp, bottom = 6.dp),
+                    Modifier.readableWidth().padding(start = 18.dp, end = 18.dp, top = 24.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom,
                 ) {
@@ -344,7 +351,9 @@ private fun DarkFeed(
                     if (state.unread > 0) Text("${state.unread} unread", style = ui(12.5f, 500), color = colors.textSecondary)
                 }
             }
-            items(latest, key = { it.id }) { post -> ListRow(post) { onOpenPost(post.id) } }
+            items(latest, key = { it.id }) { post ->
+                Box(Modifier.readableWidth()) { ListRow(post) { onOpenPost(post.id) } }
+            }
         }
         StatusBarScrim(colors.background)
     }
@@ -475,12 +484,4 @@ private fun LoadMoreEffect(lastVisibleIndex: () -> Int, count: Int, onLoadMore: 
     LaunchedEffect(count) {
         snapshotFlow { lastVisibleIndex() }.collect { if (count > 0 && it >= count - 6) onLoadMore() }
     }
-}
-
-/** Lets a full-span grid item ignore the grid's horizontal content padding. */
-private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
-    val extra = (horizontal * 2).roundToPx()
-    val width = constraints.maxWidth + extra
-    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
 }

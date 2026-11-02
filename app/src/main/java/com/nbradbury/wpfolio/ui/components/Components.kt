@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -188,6 +191,24 @@ fun OverlayButton(icon: ImageVector, label: String, modifier: Modifier = Modifie
         Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(22.dp))
     }
 }
+
+/** Lines of text read best up to about this wide; on tablets content is centred within it. */
+val ReadableWidth = 680.dp
+
+/** Fills the width up to [max], centred beyond that, so text doesn't stretch across a tablet. */
+fun Modifier.readableWidth(max: Dp = ReadableWidth): Modifier =
+    fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = max).fillMaxWidth()
+
+/** Lets a full-span grid item ignore the grid's horizontal content padding. */
+fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
+    val extra = (horizontal * 2).roundToPx()
+    val width = constraints.maxWidth + extra
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+}
+
+/** Grid columns for [width]: two on phones, more as tablets get wider. */
+fun gridColumns(width: Dp): Int = (width / 240.dp).toInt().coerceIn(2, 5)
 
 /** Covers the status bar once content scrolls under it. */
 @Composable
