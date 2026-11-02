@@ -22,7 +22,7 @@ interface WpcomApi {
         @Query("number") number: Int,
         @Query("page_handle") pageHandle: String?,
         @Query("before") before: String?,
-        @Query("meta") meta: String = "site",
+        @Query("fields") fields: String = POST_FIELDS,
     ): JsonObject
 
     /** The user's liked posts, most recently liked first; [before] is a like date to page from. */
@@ -30,7 +30,7 @@ interface WpcomApi {
     suspend fun liked(
         @Query("number") number: Int,
         @Query("before") before: String?,
-        @Query("meta") meta: String = "site",
+        @Query("fields") fields: String = POST_FIELDS,
     ): JsonObject
 
     /** Sites to follow: based on the user's likes when signed in, a general mix when not. */
@@ -41,10 +41,18 @@ interface WpcomApi {
     ): JsonObject
 
     @GET("rest/v1.2/read/sites/{blogId}/posts")
-    suspend fun sitePosts(@Path("blogId") blogId: Long, @Query("number") number: Int = 20): JsonObject
+    suspend fun sitePosts(
+        @Path("blogId") blogId: Long,
+        @Query("number") number: Int = 20,
+        @Query("fields") fields: String = POST_FIELDS,
+    ): JsonObject
 
     @GET("rest/v1.2/read/feed/{feedId}/posts")
-    suspend fun feedPosts(@Path("feedId") feedId: Long, @Query("number") number: Int = 20): JsonObject
+    suspend fun feedPosts(
+        @Path("feedId") feedId: Long,
+        @Query("number") number: Int = 20,
+        @Query("fields") fields: String = POST_FIELDS,
+    ): JsonObject
 
     /** Reader site search; works signed out too. */
     @GET("rest/v1.1/read/feed/")
@@ -73,5 +81,12 @@ interface WpcomApi {
 
     companion object {
         const val BASE_URL = "https://public-api.wordpress.com/"
+
+        /**
+         * The post fields WpcomMapper reads. Without this, each post also carries its tags, terms,
+         * attachments and metadata, about 60% of the response for 20 posts.
+         */
+        const val POST_FIELDS = "ID,site_ID,feed_ID,feed_item_ID,is_external,title,URL,date,excerpt,content," +
+            "author,featured_image,featured_media,post_thumbnail,word_count,i_like,date_liked,site_name"
     }
 }

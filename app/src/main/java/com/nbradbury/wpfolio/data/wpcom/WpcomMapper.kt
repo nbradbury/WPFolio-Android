@@ -131,8 +131,7 @@ object WpcomMapper {
         val entity = PostEntity(
             id = if (isExternal) "wpf:$feedId:${json.long("feed_item_ID") ?: postId}" else "wps:$blogId:$postId",
             siteId = siteIdOverride ?: siteKey(feedId, blogId),
-            siteName = (json.string("site_name")
-                ?: json.obj("meta")?.obj("data")?.obj("site")?.string("name"))?.unescape().orEmpty(),
+            siteName = json.string("site_name")?.unescape().orEmpty(),
             title = json.string("title")?.unescape().orEmpty(),
             excerpt = Jsoup.parse(json.string("excerpt").orEmpty()).text(),
             contentHtml = content,
