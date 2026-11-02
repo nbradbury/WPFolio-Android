@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -328,11 +329,39 @@ private fun SiteInfo(
 @Composable
 private fun GridTile(post: PostEntity, onClick: () -> Unit) {
     val colors = WpFolio.colors
+    // Without an image the tile shows the excerpt instead, or the title if there's no excerpt.
+    val quote = post.excerpt.takeIf { post.imageUrl == null && it.isNotBlank() }
+    val titleInCard = post.imageUrl == null && quote == null && post.title.isNotBlank()
     Column(Modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        AccentImage(post.imageUrl, post.accentColor, Modifier.fillMaxWidth().aspectRatio(1f), shape = RoundedCornerShape(14.dp), placeholder = post.siteName)
-        Text(post.title, style = ui(14f, 600, lineHeight = 1.25f), color = colors.text, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        val square = Modifier.fillMaxWidth().aspectRatio(1f)
+        when {
+            quote != null -> TextCard(quote, post.accentColor, QuoteStyle, square)
+            titleInCard -> TextCard(post.title, post.accentColor, CardTitleStyle, square)
+            else -> AccentImage(post.imageUrl, post.accentColor, square, shape = TileShape, placeholder = post.siteName)
+        }
+        if (!titleInCard) {
+            Text(
+                post.title,
+                style = ui(14f, 600, lineHeight = 1.25f),
+                color = colors.text,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
+
+/** Stands in for a missing image with the post's own words, so the tile still says something. */
+@Composable
+private fun TextCard(text: String, accent: Color, style: TextStyle, modifier: Modifier) {
+    Box(modifier.clip(TileShape).background(accent).padding(14.dp)) {
+        Text(text, style = style, color = Color.White, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private val TileShape = RoundedCornerShape(14.dp)
+private val QuoteStyle = body(15f, lineHeight = 1.4f)
+private val CardTitleStyle = ui(19f, 600, lineHeight = 1.2f, tracking = -0.01f)
 
 /** Pulls this element up over the previous one by [amount] without leaving a gap below. */
 private fun Modifier.overlapAbove(amount: Dp) = layout { measurable, constraints ->

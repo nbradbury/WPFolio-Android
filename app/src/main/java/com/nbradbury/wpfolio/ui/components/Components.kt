@@ -47,9 +47,12 @@ import com.nbradbury.wpfolio.data.prefs.WpcomAccount
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
 
-/** The post's sampled accent, or a stable stand-in until sampling finishes. */
+/**
+ * The post's sampled accent, or a stable stand-in until sampling finishes. Posts without an image
+ * get a stand-in of their own, so a site's text-only posts don't all share one colour.
+ */
 val PostEntity.accentColor: Color
-    get() = accentFor(accent, imageUrl ?: siteId)
+    get() = accentFor(accent, imageUrl ?: id)
 
 fun accentFor(accent: Int?, key: String): Color = Color(accent ?: AccentSampler.fallbackAccent(key))
 
