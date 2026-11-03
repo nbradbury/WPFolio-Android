@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.nbradbury.wpfolio.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -42,6 +43,15 @@ class SettingsStore(context: Context) {
 
     suspend fun setOnboarded() {
         store.edit { it[ONBOARDED] = true }
+    }
+
+    /** Debug builds only: render posts with wordpress-rs's shared Reader page. Always off in release. */
+    val wpRsRendering: Flow<Boolean> =
+        store.data.map { BuildConfig.DEBUG && it[WPRS_RENDERING] == true }.distinctUntilChanged()
+
+    suspend fun setWpRsRendering(on: Boolean) {
+        if (!BuildConfig.DEBUG) return
+        store.edit { it[WPRS_RENDERING] = on }
     }
 
     val account: Flow<WpcomAccount?> = store.data.map { prefs ->
@@ -104,5 +114,6 @@ class SettingsStore(context: Context) {
         val OAUTH_VERIFIER = stringPreferencesKey("wpcom_oauth_verifier")
         val SWIPE_HINT_SEEN = booleanPreferencesKey("swipe_hint_seen")
         val ONBOARDED = booleanPreferencesKey("onboarded")
+        val WPRS_RENDERING = booleanPreferencesKey("debug_wprs_rendering")
     }
 }
