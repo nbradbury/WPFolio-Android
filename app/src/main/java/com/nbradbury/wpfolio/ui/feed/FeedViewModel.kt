@@ -6,6 +6,7 @@ import com.nbradbury.wpfolio.data.ReaderRepository
 import com.nbradbury.wpfolio.data.SessionExpiredException
 import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,6 +56,11 @@ class FeedViewModel(private val repository: ReaderRepository) : ViewModel() {
                 if (failures > 0) _messages.send("Couldn't refresh $failures ${if (failures == 1) "site" else "sites"}")
             } catch (e: SessionExpiredException) {
                 _messages.send(e.message.orEmpty())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A malformed response or a full disk, say: report it rather than crash.
+                _messages.send("Couldn't refresh")
             } finally {
                 _refreshing.value = false
             }

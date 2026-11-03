@@ -34,10 +34,16 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.rememberSelectionState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
@@ -45,11 +51,15 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -73,6 +83,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -106,6 +117,7 @@ import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.feed.ListRow
 import com.nbradbury.wpfolio.ui.openInBrowser
+import com.nbradbury.wpfolio.ui.rememberItemViewModelStoreOwner
 import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
@@ -188,7 +200,9 @@ private fun ArticlePage(
     onNext: () -> Unit,
     onViewerOpenChange: (Boolean) -> Unit,
 ) {
-    val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it.repository) }
+    // Scoped to this page, so swiping past many posts doesn't keep each one's content in memory.
+    val pageOwner = rememberItemViewModelStoreOwner()
+    val viewModel = wpFolioViewModel(key = postId, owner = pageOwner) { ArticleViewModel(postId, it.repository) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()
@@ -231,42 +245,74 @@ private fun ArticlePage(
     // Featured image first, then the post's own images, in reading order.
     val images = remember(current.imageUrl, blocks) {
         (listOfNotNull(current.imageUrl?.let { ViewerImage(it, null) }) +
-            blocks.orEmpty().flatMap {
-                when (it) {
-                    is Block.Image -> listOf(it)
-                    is Block.Gallery -> it.images
-                    else -> emptyList()
-                }
-            }.map { ViewerImage(it.url, it.caption) })
+            ArticleBlocks.images(blocks.orEmpty()).map { ViewerImage(it.url, it.caption) })
             .distinctBy { it.url }
     }
     val openImage: (String) -> Unit = { url -> viewerIndex = images.indexOfFirst { it.url == url }.coerceAtLeast(0) }
 
-    val pill = rememberHideOnScrollState()
-    Box(Modifier.fillMaxSize().background(colors.articleBackground).nestedScroll(pill.connection)) {
-        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 120.dp), modifier = Modifier.fillMaxSize()) {
-            item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
-            item(key = "header") {
-                Box(Modifier.readableWidth()) { ArticleHeader(current, onOpenSite = openSite) }
+    val selection = rememberSelectionState()
+    var footnote by rememberSaveable { mutableStateOf<String?>(null) }
+    // Links in article text open through LocalUriHandler; footnote markers open their note instead.
+    val parentUriHandler = LocalUriHandler.current
+    val uriHandler = remember(parentUriHandler) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                val note = ArticleBlocks.footnote(uri)
+                if (note != null) footnote = note else parentUriHandler.openUri(uri)
             }
-            val loaded = blocks
-            if (loaded == null) {
-                item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colors.textSecondary)
+        }
+    }
+
+    val pill = rememberHideOnScrollState()
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.articleBackground)
+            .nestedScroll(pill.connection)
+            .appendTextContextMenuComponents {
+                separator()
+                item(key = ShareQuoteKey, label = "Share") {
+                    val quote = selection.selectedTexts.joinToString("\n") { it.text }.trim()
+                    context.shareLink(current.title, current.url, quote)
+                    close()
+                }
+                separator()
+            },
+    ) {
+        // Text can be selected to copy or share a passage; links (including footnotes) still open on tap.
+        CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+            SelectionContainer(state = selection) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = 120.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    item(key = "hero") { ArticleHero(current, heroHeight, onImageClick = openImage) }
+                    item(key = "header") {
+                        Box(Modifier.readableWidth()) { ArticleHeader(current, onOpenSite = openSite) }
+                    }
+                    val loaded = blocks
+                    if (loaded == null) {
+                        item(key = "loading") {
+                            Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = colors.textSecondary)
+                            }
+                        }
+                    } else {
+                        items(loaded) {
+                            Box(Modifier.readableWidth()) {
+                                BlockView(it, current.accentColor, isCurrent, onImageClick = openImage)
+                            }
+                        }
+                        item(key = "footer") {
+                            val summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) }
+                            Box(Modifier.readableWidth()) { ArticleFooter(current, summaryOnly) }
+                        }
+                        nextPostId?.let {
+                            item(key = "next") { Box(Modifier.readableWidth()) { NextPost(it, onNext) } }
+                        }
                     }
                 }
-            } else {
-                items(loaded) {
-                    Box(Modifier.readableWidth()) {
-                        BlockView(it, current.accentColor, isCurrent, onImageClick = openImage)
-                    }
-                }
-                item(key = "footer") {
-                    val summaryOnly = remember(loaded) { ArticleBlocks.looksLikeExcerpt(loaded) }
-                    Box(Modifier.readableWidth()) { ArticleFooter(current, summaryOnly) }
-                }
-                nextPostId?.let { item(key = "next") { Box(Modifier.readableWidth()) { NextPost(it, onNext) } } }
             }
         }
 
@@ -292,6 +338,7 @@ private fun ArticlePage(
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
+        footnote?.let { FootnoteSheet(it, onDismiss = { footnote = null }) }
         viewerIndex?.let { index ->
             PhotoViewer(images, index, onDismiss = { viewerIndex = null })
         }
@@ -379,7 +426,7 @@ private fun readTime(wordCount: Int): String? =
 @Composable
 private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {
     val colors = WpFolio.colors
-    val links = remember(colors.text) { TextLinkStyles(SpanStyle(color = colors.text, textDecoration = TextDecoration.Underline)) }
+    val links = rememberLinkStyles()
     val padded = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 7.dp)
     when (block) {
         is Block.Paragraph -> Text(
@@ -466,6 +513,22 @@ private fun BlockView(block: Block, accent: Color, isCurrent: Boolean, onImageCl
         is Block.Video -> VideoBlock(block, accent, active = isCurrent)
         is Block.Embed -> EmbedCard(block)
         Block.Rule -> HorizontalDivider(padded.padding(vertical = 12.dp), color = colors.divider)
+        is Block.Button -> {
+            val uriHandler = LocalUriHandler.current
+            Box(padded.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    block.label,
+                    style = ui(15f, 600),
+                    color = colors.onInverse,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(colors.inverse)
+                        .clickable { uriHandler.openUri(block.url) }
+                        .padding(horizontal = 24.dp, vertical = 13.dp),
+                )
+            }
+        }
+        is Block.Details -> DetailsBlock(block, accent, isCurrent, onImageClick)
     }
 }
 
@@ -529,6 +592,30 @@ private fun rememberHtml(html: String, links: TextLinkStyles): AnnotatedString =
     remember(html, links) { AnnotatedString.fromHtml(html, linkStyles = links) }
 
 @Composable
+private fun rememberLinkStyles(): TextLinkStyles {
+    val color = WpFolio.colors.text
+    return remember(color) { TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)) }
+}
+
+/** The selection menu's Share item, which shares the selected passage with the post's link. */
+private data object ShareQuoteKey
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FootnoteSheet(html: String, onDismiss: () -> Unit) {
+    val colors = WpFolio.colors
+    val links = rememberLinkStyles()
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.sheet) {
+        Text(
+            rememberHtml(html, links),
+            style = body(BODY_SIZE * 0.94f, lineHeight = 1.55f),
+            color = colors.body,
+            modifier = Modifier.readableWidth().padding(start = 22.dp, end = 22.dp, bottom = 36.dp),
+        )
+    }
+}
+
+@Composable
 private fun Caption(text: String) {
     Text(
         text,
@@ -536,6 +623,33 @@ private fun Caption(text: String) {
         color = WpFolio.colors.textSecondary,
         modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp),
     )
+}
+
+/** A collapsed `<details>` section: its summary, and its blocks once tapped open. */
+@Composable
+private fun DetailsBlock(block: Block.Details, accent: Color, isCurrent: Boolean, onImageClick: (String) -> Unit) {
+    val colors = WpFolio.colors
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        HorizontalDivider(Modifier.padding(horizontal = 22.dp), color = colors.divider)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = if (open) "Collapse" else "Expand") { open = !open }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(block.summary, style = ui(BODY_SIZE * 0.94f, 600), color = colors.text, modifier = Modifier.weight(1f))
+            Icon(
+                if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = colors.textSecondary,
+            )
+        }
+        if (open) block.blocks.forEach { BlockView(it, accent, isCurrent, onImageClick) }
+        HorizontalDivider(Modifier.padding(horizontal = 22.dp), color = colors.divider)
+    }
 }
 
 @Composable

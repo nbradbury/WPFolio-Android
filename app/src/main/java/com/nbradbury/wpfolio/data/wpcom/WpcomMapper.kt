@@ -72,6 +72,9 @@ object WpcomMapper {
 
     fun nextPageHandle(json: JsonObject): String? = json.string("next_page_handle")
 
+    /** How many items the response's [key] array holds, whether or not they map. */
+    fun count(json: JsonObject, key: String): Int = json.array(key).size
+
     /** The oldest like date on a page of liked posts, which fetches the next page as `before`. */
     fun oldestLike(json: JsonObject): String? = json.obj("date_range")?.string("after")
 

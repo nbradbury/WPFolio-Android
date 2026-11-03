@@ -39,9 +39,10 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         val all = mutableListOf<SiteEntity>()
         var page = 1
         while (true) {
-            val batch = WpcomMapper.subscriptions(api.subscriptions(page = page, number = PAGE_SIZE))
-            all += batch
-            if (batch.size < PAGE_SIZE || page >= MAX_PAGES) break
+            val json = api.subscriptions(page = page, number = PAGE_SIZE)
+            all += WpcomMapper.subscriptions(json)
+            // Counted before mapping: an entry that can't be mapped doesn't mean this was the last page.
+            if (WpcomMapper.count(json, "subscriptions") < PAGE_SIZE || page >= MAX_PAGES) break
             page++
         }
         return all.distinctBy { it.id }
@@ -64,9 +65,8 @@ class RetrofitWpcomSource(private val api: WpcomApi) : WpcomSource {
         var before: String? = null
         repeat(MAX_PAGES) {
             val json = api.liked(number = FEED_PAGE_SIZE, before = before)
-            val page = withContext(Dispatchers.Default) { WpcomMapper.posts(json) }
-            all += page
-            if (page.size < FEED_PAGE_SIZE) return WpcomLikes(all, complete = true)
+            all += withContext(Dispatchers.Default) { WpcomMapper.posts(json) }
+            if (WpcomMapper.count(json, "posts") < FEED_PAGE_SIZE) return WpcomLikes(all, complete = true)
             before = WpcomMapper.oldestLike(json) ?: return WpcomLikes(all, complete = true)
         }
         return WpcomLikes(all, complete = false)

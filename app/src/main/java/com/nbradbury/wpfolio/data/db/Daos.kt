@@ -48,11 +48,8 @@ interface SiteDao {
     @Query("SELECT * FROM sites WHERE origin = :origin")
     suspend fun getByOrigin(origin: Origin): List<SiteEntity>
 
-    @Query("SELECT * FROM sites WHERE feedUrl = :url OR siteUrl = :url LIMIT 1")
-    suspend fun findByUrl(url: String): SiteEntity?
-
-    @Query("SELECT * FROM sites WHERE feedUrl IN (:urls) OR siteUrl IN (:urls)")
-    suspend fun findByUrls(urls: List<String>): List<SiteEntity>
+    @Query("SELECT * FROM sites")
+    suspend fun getAll(): List<SiteEntity>
 
     @Query("SELECT COUNT(*) FROM sites")
     fun observeCount(): Flow<Int>

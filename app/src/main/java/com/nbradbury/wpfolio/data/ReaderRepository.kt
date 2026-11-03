@@ -18,11 +18,15 @@ import com.nbradbury.wpfolio.data.wpcom.WpcomPost
 import com.nbradbury.wpfolio.data.wpcom.WpcomSource
 import com.nbradbury.wpfolio.data.wpcom.WpcomToken
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -52,6 +56,9 @@ class ReaderRepository(
     private val refreshMutex = Mutex()
     private var feedCursor: PageCursor? = null
 
+    /** How many feed posts to show; grows as older WordPress.com pages load, so they appear. */
+    private val feedLimit = MutableStateFlow(FEED_LIMIT)
+
     /** VideoPress posters by video guid, so a poster isn't fetched again each time it scrolls into view. */
     private val posters = ConcurrentHashMap<String, String>()
 
@@ -63,14 +70,15 @@ class ReaderRepository(
     val liked: Flow<List<PostEntity>> = posts.observeLiked()
     val sitesWithLatest: Flow<List<SiteWithLatest>> = sites.observeAllWithLatest()
 
-    fun feed(): Flow<List<PostEntity>> = posts.observeFeed(FEED_LIMIT)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun feed(): Flow<List<PostEntity>> = feedLimit.flatMapLatest { posts.observeFeed(it) }
     fun post(id: String): Flow<PostEntity?> = posts.observe(id)
     fun site(id: String): Flow<SiteEntity?> = sites.observe(id)
     fun sitePosts(id: String): Flow<List<PostEntity>> = posts.observeForSite(id)
 
     /** IDs of the posts in [list], in display order; SITE uses the site of [postId]. */
     suspend fun postIds(list: PostList, postId: String): List<String> = when (list) {
-        PostList.FEED -> posts.feedIds(FEED_LIMIT)
+        PostList.FEED -> posts.feedIds(feedLimit.value)
         PostList.SAVED -> posts.savedIds()
         PostList.LIKED -> posts.likedIds()
         PostList.SITE -> posts.get(postId)?.let { posts.siteIds(it.siteId) }.orEmpty()
@@ -102,6 +110,7 @@ class ReaderRepository(
         if (!isSignedIn()) return false
         val page = wpcom.following(cursor)
         mergeWpcom(page.posts)
+        feedLimit.update { it + page.posts.size }
         feedCursor = page.next
         return page.next != null
     }
@@ -143,10 +152,8 @@ class ReaderRepository(
         markSubscribed(wpcom.recommendedSites()).filter { it.subscribedSiteId == null }
 
     private suspend fun markSubscribed(results: List<SiteSearchResult>): List<SiteSearchResult> {
-        // One query for every result's URLs rather than two per result.
-        val existing = sites.findByUrls(results.flatMap { listOf(it.feedUrl, it.siteUrl) })
-        fun matching(url: String) = existing.firstOrNull { it.feedUrl == url || it.siteUrl == url }
-        return results.map { it.copy(subscribedSiteId = (matching(it.feedUrl) ?: matching(it.siteUrl))?.id) }
+        val all = sites.getAll()
+        return results.map { it.copy(subscribedSiteId = subscribedId(all, it.feedUrl, it.siteUrl)) }
     }
 
     /**
@@ -290,7 +297,18 @@ class ReaderRepository(
 
     /** The id of an existing subscription to this feed or site, if there is one. */
     private suspend fun subscribedId(feedUrl: String, siteUrl: String): String? =
-        (sites.findByUrl(feedUrl) ?: sites.findByUrl(siteUrl))?.id
+        subscribedId(sites.getAll(), feedUrl, siteUrl)
+
+    /**
+     * Compares with [sameUrl], like following does, so http vs https, www and a trailing slash
+     * don't hide an existing subscription.
+     */
+    private fun subscribedId(all: List<SiteEntity>, feedUrl: String, siteUrl: String): String? {
+        fun matching(url: String) = url.takeIf { it.isNotBlank() }?.let { u ->
+            all.firstOrNull { sameUrl(it.feedUrl, u) || sameUrl(it.siteUrl, u) }
+        }
+        return (matching(feedUrl) ?: matching(siteUrl))?.id
+    }
 
     /** Deletes a subscription and its posts, apart from saved and liked ones. */
     private suspend fun removeSite(id: String) {

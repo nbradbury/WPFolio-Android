@@ -149,6 +149,13 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `search spots subscriptions whose URL differs only in scheme, www or trailing slash`() = runBlocking {
+        repository.subscribe(preview(feedUrl = "https://a.test/feed"))
+        wpcom.searchResults = listOf(searchResult("http://www.a.test/feed/"))
+        assertEquals("https://a.test/feed", repository.searchSites("test").single().subscribedSiteId)
+    }
+
+    @Test
     fun `recommended sites leave out ones already subscribed to`() = runBlocking {
         repository.subscribe(preview(feedUrl = "https://a.test/feed"))
         wpcom.recommended = listOf(searchResult("https://a.test/feed"), searchResult("https://b.test/feed"))

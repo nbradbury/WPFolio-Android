@@ -72,11 +72,12 @@ import com.nbradbury.wpfolio.ui.theme.body
 import com.nbradbury.wpfolio.ui.theme.ui
 import com.nbradbury.wpfolio.ui.wpFolioViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 sealed interface AddState {
@@ -95,6 +96,15 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
     private val _query = MutableStateFlow("")
     val query = _query.asStateFlow()
 
+    /**
+     * Every edit and Search press, not the query's distinct values, so a failed lookup can be
+     * retried and clearing then re-entering the same text looks it up again.
+     */
+    private val lookups = MutableSharedFlow<String>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
     private val _state = MutableStateFlow<AddState>(AddState.Idle)
     val state = _state.asStateFlow()
 
@@ -111,14 +121,18 @@ class AddViewModel(private val container: AppContainer) : ViewModel() {
             _suggestions.value = runCatching { container.repository.recommendedSites() }.getOrDefault(emptyList())
         }
         viewModelScope.launch {
-            _query.debounce(400).distinctUntilChanged().collectLatest { lookup(it) }
+            lookups.debounce(400).collectLatest { lookup(it) }
         }
     }
 
     fun setQuery(value: String) {
         _query.value = value
         if (value.isBlank()) _state.value = AddState.Idle
+        lookups.tryEmit(value)
     }
+
+    /** The keyboard's Search action: looks up the query again, even if it hasn't changed. */
+    fun submit() = setQuery(_query.value.trim())
 
     /** URLs are looked up directly; anything else searches WordPress.com Reader for sites. */
     private suspend fun lookup(input: String) {
@@ -222,6 +236,7 @@ fun AddScreen(
         QueryField(
             value = query,
             onValueChange = viewModel::setQuery,
+            onSearch = viewModel::submit,
             loading = state is AddState.Looking,
             modifier = Modifier.focusRequester(focus),
         )
@@ -261,6 +276,7 @@ fun AddScreen(
 private fun QueryField(
     value: String,
     onValueChange: (String) -> Unit,
+    onSearch: () -> Unit,
     loading: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -300,7 +316,7 @@ private fun QueryField(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Search,
                 ),
-                keyboardActions = KeyboardActions(onSearch = { onValueChange(value.trim()) }),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
                 modifier = modifier.fillMaxWidth(),
             )
         }
