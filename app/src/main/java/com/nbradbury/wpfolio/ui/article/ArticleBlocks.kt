@@ -4,6 +4,8 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
 import com.nbradbury.wpfolio.data.rss.FeedParser
+import java.net.URLDecoder
+import java.net.URLEncoder
 
 sealed interface Block {
     data class Paragraph(val html: String) : Block
@@ -21,6 +23,10 @@ sealed interface Block {
     data class ListItem(val html: String, val marker: String, val depth: Int) : Block
     data class Code(val text: String) : Block
     data object Rule : Block
+    /** A WordPress button block: a call to action that opens [url]. */
+    data class Button(val label: String, val url: String) : Block
+    /** A `<details>` section, collapsed to its [summary] until tapped. */
+    data class Details(val summary: String, val blocks: List<Block>) : Block
 
     /**
      * A video played in place on tap. [id] is the host's video ID, or the file URL for
@@ -109,13 +115,50 @@ object ArticleBlocks {
         return TRUNCATED.containsMatchIn(Jsoup.parse(last.html).text().trim())
     }
 
+    /** Footnote markers link here, followed by the note's HTML, URL-encoded. */
+    private const val FOOTNOTE_SCHEME = "footnote:"
+
+    /** The note's HTML if [url] is a footnote marker's link, else null. */
+    fun footnote(url: String): String? =
+        if (url.startsWith(FOOTNOTE_SCHEME)) URLDecoder.decode(url.removePrefix(FOOTNOTE_SCHEME), "UTF-8") else null
+
     fun parse(html: String, baseUrl: String): List<Block> {
         if (html.isBlank()) return emptyList()
         val body = Jsoup.parseBodyFragment(html, baseUrl).body()
-        // In-page links (footnote markers, their back-links) have nowhere to go in a native view.
-        body.select(".wp-block-footnotes a[href^=#]").remove()
-        body.select("a[href^=#]").unwrap()
+        linkFootnotes(body)
         return mutableListOf<Block>().also { walk(body, it, depth = 0) }
+    }
+
+    /**
+     * In-page links have nowhere to go in a native view. Footnote markers (links to a list item
+     * elsewhere in the post) instead carry their note, so tapping one can show it in place; the
+     * notes' links back to their markers are dropped, and any other in-page link becomes text.
+     */
+    private fun linkFootnotes(body: Element) {
+        // One pass to index the list items, rather than searching the document for each link.
+        val items = body.select("li[id]").associateBy { it.id() }
+        val links = body.select("a[href^=#]")
+        val notes = links.mapNotNull { items[it.attr("href").drop(1)] }.toSet()
+        notes.forEach { it.select("a[href^=#]").remove() }
+        for (link in links) {
+            if (link.parent() == null) continue // a back-link, removed above
+            val note = items[link.attr("href").drop(1)]?.takeIf { it in notes }?.html()?.trim()
+            if (note.isNullOrEmpty()) {
+                link.unwrap()
+            } else {
+                link.attr("href", FOOTNOTE_SCHEME + URLEncoder.encode(note, "UTF-8"))
+            }
+        }
+    }
+
+    /** Every image in [blocks], including those in galleries and collapsed sections, in reading order. */
+    fun images(blocks: List<Block>): List<Block.Image> = blocks.flatMap {
+        when (it) {
+            is Block.Image -> listOf(it)
+            is Block.Gallery -> it.images
+            is Block.Details -> images(it.blocks)
+            else -> emptyList()
+        }
     }
 
     private fun walk(parent: Element, out: MutableList<Block>, depth: Int) {
@@ -148,7 +191,15 @@ object ArticleBlocks {
 
     private fun block(el: Element, out: MutableList<Block>, depth: Int) {
         if (el.classNames().any { it in GALLERIES }) return gallery(el, out)
+        if (el.hasClass("wp-block-buttons") || el.hasClass("wp-block-button")) return buttons(el, out)
         when (el.tagName()) {
+            "details" -> {
+                val summary = el.children().firstOrNull { it.tagName() == "summary" }
+                val title = summary?.text()?.ifEmpty { null } ?: "Details"
+                summary?.remove()
+                val inner = mutableListOf<Block>().also { walk(el, it, depth) }
+                if (inner.isNotEmpty()) out += Block.Details(title, inner)
+            }
             "p" -> {
                 val images = el.select("img").mapNotNull { image(it, caption = null) }
                 val media = el.select(MEDIA).mapNotNull(::media)
@@ -219,6 +270,14 @@ object ArticleBlocks {
         val declared = el.classNames().firstNotNullOfOrNull { GALLERY_COLUMNS.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
         val columns = minOf(declared ?: MAX_GALLERY_COLUMNS, MAX_GALLERY_COLUMNS, images.size).coerceAtLeast(1)
         out += Block.Gallery(images, columns, caption)
+    }
+
+    private fun buttons(el: Element, out: MutableList<Block>) {
+        for (link in el.select("a[href]")) {
+            val url = link.absUrl("href")
+            val label = link.text()
+            if (url.startsWith("http") && label.isNotEmpty()) out += Block.Button(label, url)
+        }
     }
 
     private fun table(table: Element, caption: String?): Block.Table? {

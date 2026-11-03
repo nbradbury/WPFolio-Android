@@ -135,19 +135,71 @@ class ArticleBlocksTest {
     }
 
     @Test
-    fun `drops footnote links that can't go anywhere`() {
+    fun `footnote markers carry their note, and other in-page links become text`() {
         // Markup as WordPress's footnotes block writes it.
         val html = """
-            <p>A claim<sup class="fn"><a href="#fn-1" id="fn-1-link">1</a></sup>.</p>
-            <ol class="wp-block-footnotes"><li id="fn-1">The source. <a href="#fn-1-link" aria-label="Jump to footnote reference 1">↩︎</a></li></ol>
+            <p>A claim<sup class="fn"><a href="#fn-1" id="fn-1-link">1</a></sup>, see <a href="#later">below</a>.
+              <a href="#">Top</a></p>
+            <ol class="wp-block-footnotes"><li id="fn-1">The <em>source</em>.
+              <a href="#fn-1-link" aria-label="Jump to footnote reference 1">↩︎</a></li></ol>
+            <h2 id="later">Later</h2>
+        """.trimIndent()
+        val blocks = ArticleBlocks.parse(html, "https://a.test/")
+        val note = java.net.URLEncoder.encode("The <em>source</em>.", "UTF-8")
+        assertEquals(
+            listOf(
+                Block.Paragraph(
+                    "A claim<sup class=\"fn\"><a href=\"footnote:$note\" id=\"fn-1-link\">1</a></sup>, see below. Top",
+                ),
+                Block.ListItem("The <em>source</em>.", "1.", 0),
+                Block.Heading("Later", 2),
+            ),
+            blocks,
+        )
+        // Tapping the marker decodes its note; other links aren't footnotes.
+        assertEquals("The <em>source</em>.", ArticleBlocks.footnote("footnote:$note"))
+        assertEquals(null, ArticleBlocks.footnote("https://a.test/"))
+    }
+
+    @Test
+    fun `keeps button blocks as calls to action`() {
+        // Markup as WordPress's buttons block writes it.
+        val html = """
+            <div class="wp-block-buttons is-content-justification-center"><div class="wp-block-button">
+              <a class="wp-block-button__link" href="https://example.com/story" target="_blank">Read the story</a>
+            </div><div class="wp-block-button"><a class="wp-block-button__link" href="/subscribe">Subscribe</a></div>
+            <div class="wp-block-button"><a class="wp-block-button__link">No link</a></div></div>
         """.trimIndent()
         assertEquals(
             listOf(
-                Block.Paragraph("A claim<sup class=\"fn\">1</sup>."),
-                Block.ListItem("The source.", "1.", 0),
+                Block.Button("Read the story", "https://example.com/story"),
+                Block.Button("Subscribe", "https://a.test/subscribe"),
             ),
             ArticleBlocks.parse(html, "https://a.test/"),
         )
+    }
+
+    @Test
+    fun `turns details into collapsible sections, images included`() {
+        val html = """
+            <details class="wp-block-details"><summary>Transcript</summary>
+              <p>Host: Hello.</p><figure><img src="https://a.test/1.jpg"></figure>
+            </details>
+            <details><p>No summary</p></details>
+            <details><summary>Empty</summary></details>
+        """.trimIndent()
+        val blocks = ArticleBlocks.parse(html, "https://a.test/")
+        assertEquals(
+            listOf(
+                Block.Details(
+                    "Transcript",
+                    listOf(Block.Paragraph("Host: Hello."), Block.Image("https://a.test/1.jpg", null)),
+                ),
+                Block.Details("Details", listOf(Block.Paragraph("No summary"))),
+            ),
+            blocks,
+        )
+        assertEquals(listOf("https://a.test/1.jpg"), ArticleBlocks.images(blocks).map { it.url })
     }
 
     @Test
