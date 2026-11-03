@@ -58,12 +58,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -100,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.nbradbury.wpfolio.BuildConfig
 import com.nbradbury.wpfolio.R
 import com.nbradbury.wpfolio.container
 import com.nbradbury.wpfolio.data.PostList
@@ -211,12 +214,17 @@ private fun ArticlePage(
 ) {
     // Scoped to this page, so swiping past many posts doesn't keep each one's content in memory.
     val pageOwner = rememberItemViewModelStoreOwner()
-    val viewModel = wpFolioViewModel(key = postId, owner = pageOwner) { ArticleViewModel(postId, it.repository) }
+    val viewModel = wpFolioViewModel(key = postId, owner = pageOwner) {
+        ArticleViewModel(postId, it.repository, it.settings)
+    }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()
     val commentThread by viewModel.commentThread.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+    val wpRsRendering by viewModel.wpRsRendering.collectAsStateWithLifecycle()
+    val wpRsContent by viewModel.wpRsContent.collectAsStateWithLifecycle()
+    var wpRsHeight by remember { mutableIntStateOf(0) }
     var commentsOpen by rememberSaveable { mutableStateOf(false) }
     val colors = WpFolio.colors
     val context = LocalContext.current
@@ -233,6 +241,7 @@ private fun ArticlePage(
     val openSite = if (siteSubscribed) ({ onOpenSite(current.siteId) }) else null
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val statusBarPx = WindowInsets.statusBars.getTop(density)
     val heroHeight = when {
@@ -255,10 +264,10 @@ private fun ArticlePage(
     LaunchedEffect(viewerOpen, isCurrent) { if (isCurrent) onViewerOpenChange(viewerOpen) }
 
     // Featured image first, then the post's own images, in reading order.
-    val images = remember(current.imageUrl, blocks) {
-        (listOfNotNull(current.imageUrl?.let { ViewerImage(it, null) }) +
-            ArticleBlocks.images(blocks.orEmpty()).map { ViewerImage(it.url, it.caption) })
-            .distinctBy { it.url }
+    val images = remember(current.imageUrl, blocks, wpRsContent) {
+        val body = wpRsContent?.images()?.map { ViewerImage(it.url, it.caption) }
+            ?: ArticleBlocks.images(blocks.orEmpty()).map { ViewerImage(it.url, it.caption) }
+        (listOfNotNull(current.imageUrl?.let { ViewerImage(it, null) }) + body).distinctBy { it.url }
     }
     val openImage: (String) -> Unit = { url -> viewerIndex = images.indexOfFirst { it.url == url }.coerceAtLeast(0) }
 
@@ -304,16 +313,35 @@ private fun ArticlePage(
                         Box(Modifier.readableWidth()) { ArticleHeader(current, onOpenSite = openSite) }
                     }
                     val loaded = blocks
-                    if (loaded == null) {
+                    val wpRs = wpRsRendering
+                    val rsContent = wpRsContent
+                    if (loaded == null || wpRs == null || (wpRs && rsContent == null)) {
                         item(key = "loading") {
                             Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = colors.textSecondary)
                             }
                         }
                     } else {
-                        items(loaded) {
-                            Box(Modifier.readableWidth()) {
-                                BlockView(it, current.accentColor, isCurrent, onImageClick = openImage)
+                        if (rsContent != null) {
+                            item(key = "wprs") {
+                                WpRsArticleBody(
+                                    rsContent,
+                                    wpRsHeight,
+                                    onHeight = { wpRsHeight = it },
+                                    onImageClick = openImage,
+                                    // The page is the third item, after the hero and header.
+                                    onAnchor = { y ->
+                                        val offset = with(density) { y.dp.roundToPx() }
+                                        scope.launch { listState.animateScrollToItem(2, offset) }
+                                    },
+                                    modifier = Modifier.readableWidth(),
+                                )
+                            }
+                        } else {
+                            items(loaded) {
+                                Box(Modifier.readableWidth()) {
+                                    BlockView(it, current.accentColor, isCurrent, onImageClick = openImage)
+                                }
                             }
                         }
                         item(key = "footer") {
@@ -332,7 +360,7 @@ private fun ArticlePage(
             StatusBarScrim(colors.articleBackground)
         }
         ProgressBar(listState, heroPx, statusBarPx, current.accentColor)
-        TopButtons(current, onBack, openSite)
+        TopButtons(current, onBack, openSite, wpRsRendering, viewModel::setWpRsRendering)
 
         HideOnScroll(pill, Modifier.align(Alignment.BottomCenter)) {
             PillContainer {
@@ -823,7 +851,13 @@ private fun ProgressBar(listState: LazyListState, heroPx: Int, statusBarPx: Int,
 
 
 @Composable
-private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: (() -> Unit)?) {
+private fun TopButtons(
+    post: PostEntity,
+    onBack: () -> Unit,
+    onOpenSite: (() -> Unit)?,
+    wpRsRendering: Boolean?,
+    onWpRsRenderingChange: (Boolean) -> Unit,
+) {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -849,6 +883,16 @@ private fun TopButtons(post: PostEntity, onBack: () -> Unit, onOpenSite: (() -> 
                         menu = false
                         onOpenSite()
                     })
+                }
+                if (BuildConfig.DEBUG && wpRsRendering != null) {
+                    DropdownMenuItem(
+                        text = { Text("Render with wordpress-rs") },
+                        trailingIcon = { Switch(checked = wpRsRendering, onCheckedChange = null) },
+                        onClick = {
+                            menu = false
+                            onWpRsRenderingChange(!wpRsRendering)
+                        },
+                    )
                 }
             }
         }
