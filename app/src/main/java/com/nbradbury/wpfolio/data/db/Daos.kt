@@ -14,7 +14,8 @@ import com.nbradbury.wpfolio.data.Accent
  * [PostDao.observe] and [PostDao.get] load the whole post.
  */
 private const val LIST_COLUMNS = "id, siteId, siteName, title, excerpt, '' AS contentHtml, url, author, imageUrl, " +
-    "publishedAt, wordCount, wpcomBlogId, wpcomPostId, accent, imageRatio, isRead, isSaved, isLiked, likedAt"
+    "publishedAt, wordCount, wpcomBlogId, wpcomPostId, accent, imageRatio, isRead, isSaved, isLiked, likedAt, " +
+    "likeCount, commentCount"
 
 // Shared by each list and its ID query, so paging in an article follows the list's order.
 private const val FEED = "FROM posts WHERE siteId IN (SELECT id FROM sites) ORDER BY publishedAt DESC LIMIT :limit"
@@ -116,7 +117,9 @@ interface PostDao {
             accent = CASE WHEN imageUrl IS :imageUrl THEN accent ELSE NULL END,
             imageRatio = CASE WHEN imageUrl IS :imageUrl THEN imageRatio ELSE NULL END,
             isLiked = COALESCE(:liked, isLiked),
-            likedAt = CASE WHEN :liked IS NULL THEN likedAt WHEN :liked THEN COALESCE(:likedAt, likedAt) ELSE NULL END
+            likedAt = CASE WHEN :liked IS NULL THEN likedAt WHEN :liked THEN COALESCE(:likedAt, likedAt) ELSE NULL END,
+            likeCount = COALESCE(:likeCount, likeCount),
+            commentCount = COALESCE(:commentCount, commentCount)
         WHERE id = :id
         """
     )
@@ -133,6 +136,8 @@ interface PostDao {
         wordCount: Int,
         liked: Boolean?,
         likedAt: Long?,
+        likeCount: Int?,
+        commentCount: Int?,
     )
 
     /**
@@ -159,6 +164,8 @@ interface PostDao {
                     wordCount = post.wordCount,
                     liked = remoteLikes[post.id],
                     likedAt = post.likedAt,
+                    likeCount = post.likeCount,
+                    commentCount = post.commentCount,
                 )
             }
         }
@@ -189,8 +196,20 @@ interface PostDao {
     @Query("UPDATE posts SET isSaved = :saved WHERE id = :id")
     suspend fun setSaved(id: String, saved: Boolean)
 
-    @Query("UPDATE posts SET isLiked = :liked, likedAt = :likedAt WHERE id = :id")
+    /** Also moves the like count by one when the like actually changes, until the next sync. */
+    @Query(
+        """
+        UPDATE posts SET isLiked = :liked, likedAt = :likedAt,
+            likeCount = CASE WHEN likeCount IS NULL OR isLiked = :liked THEN likeCount
+                WHEN :liked THEN likeCount + 1 ELSE MAX(likeCount - 1, 0) END
+        WHERE id = :id
+        """
+    )
     suspend fun setLiked(id: String, liked: Boolean, likedAt: Long?)
+
+    /** Counts a comment the user just posted, until the next sync brings the site's count. */
+    @Query("UPDATE posts SET commentCount = COALESCE(commentCount, 0) + 1 WHERE id = :id")
+    suspend fun addComment(id: String)
 
     /** Clears likes on WordPress.com posts that aren't in [likedIds], the user's full list of likes. */
     @Query(

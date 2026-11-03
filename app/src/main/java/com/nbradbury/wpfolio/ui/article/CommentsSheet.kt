@@ -70,10 +70,12 @@ data class CommentsUiState(
     val posting: Boolean = false,
     /** Shown after posting, e.g. that the comment is awaiting moderation. */
     val notice: String? = null,
+    /** Whether comments can be posted here; null until a site added by address has been looked up. */
+    val canWrite: Boolean? = null,
 )
 
-class CommentsViewModel(private val thread: CommentThread, private val source: CommentsSource) : ViewModel() {
-    private val _state = MutableStateFlow(CommentsUiState())
+class CommentsViewModel(private var thread: CommentThread, private val source: CommentsSource) : ViewModel() {
+    private val _state = MutableStateFlow(CommentsUiState(canWrite = thread.canWrite.takeIf { it }))
     val state = _state.asStateFlow()
 
     private val loaded = mutableListOf<Comment>()
@@ -89,6 +91,7 @@ class CommentsViewModel(private val thread: CommentThread, private val source: C
         _state.update { it.copy(loadingMore = true, error = null) }
         viewModelScope.launch {
             try {
+                if (nextPage == 1) thread = source.resolve(thread)
                 val page = source.list(thread, nextPage)
                 loaded += page.comments
                 nextPage++
@@ -98,7 +101,7 @@ class CommentsViewModel(private val thread: CommentThread, private val source: C
             } catch (e: Exception) {
                 _state.update { it.copy(error = e.message ?: "Couldn't load comments") }
             } finally {
-                _state.update { it.copy(loading = false, loadingMore = false) }
+                _state.update { it.copy(loading = false, loadingMore = false, canWrite = thread.canWrite) }
             }
         }
     }
@@ -106,7 +109,7 @@ class CommentsViewModel(private val thread: CommentThread, private val source: C
     fun replyTo(comment: Comment?) = _state.update { it.copy(replyingTo = comment, notice = null) }
 
     /** Posts [text]; [onPosted] runs once it's accepted, so the field can be cleared. */
-    fun post(text: String, onPosted: () -> Unit) {
+    fun post(text: String, onPosted: (Comment) -> Unit) {
         if (_state.value.posting || text.isBlank()) return
         val parent = _state.value.replyingTo
         _state.update { it.copy(posting = true, notice = null) }
@@ -116,7 +119,7 @@ class CommentsViewModel(private val thread: CommentThread, private val source: C
                 loaded += comment
                 val notice = if (comment.held) "Your comment is awaiting moderation." else null
                 _state.update { it.copy(comments = threaded(loaded), replyingTo = null, notice = notice) }
-                onPosted()
+                onPosted(comment)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -140,6 +143,7 @@ fun CommentsSheet(
     owner: ViewModelStoreOwner,
     onSignIn: () -> Unit,
     onCommentOnSite: () -> Unit,
+    onCommentPosted: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val viewModel = wpFolioViewModel(key = "comments", owner = owner) { CommentsViewModel(thread, it.comments) }
@@ -164,19 +168,20 @@ fun CommentsSheet(
                         color = colors.textSecondary,
                     )
                     state.comments.isEmpty() -> Text(
-                        state.error ?: if (thread.canWrite) "No comments yet. Start the conversation." else NO_COMMENTS,
+                        state.error ?: if (state.canWrite == true) START_CONVERSATION else NO_COMMENTS,
                         style = body(15f),
                         color = colors.bodyMuted,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp),
                     )
-                    else -> CommentList(state, canReply = thread.canWrite && signedIn, viewModel)
+                    else -> CommentList(state, canReply = state.canWrite == true && signedIn, viewModel)
                 }
             }
             HorizontalDivider(color = colors.divider)
             when {
-                !thread.canWrite -> SheetAction("Comment on the site", onCommentOnSite)
-                !signedIn -> SheetAction("Sign in to comment", onSignIn)
-                else -> Composer(state, viewModel)
+                state.canWrite == null -> Unit
+                state.canWrite == false -> SheetAction("Comment on the site", onCommentOnSite)
+                !signedIn -> SheetAction("Sign in to WordPress.com to comment", onSignIn)
+                else -> Composer(state, viewModel, onCommentPosted)
             }
         }
     }
@@ -234,7 +239,7 @@ private fun CommentList(state: CommentsUiState, canReply: Boolean, viewModel: Co
 }
 
 @Composable
-private fun Composer(state: CommentsUiState, viewModel: CommentsViewModel) {
+private fun Composer(state: CommentsUiState, viewModel: CommentsViewModel, onCommentPosted: () -> Unit) {
     val colors = WpFolio.colors
     var text by rememberSaveable { mutableStateOf("") }
     Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 12.dp)) {
@@ -276,7 +281,14 @@ private fun Composer(state: CommentsUiState, viewModel: CommentsViewModel) {
                     strokeWidth = 2.dp,
                 )
             } else {
-                IconButton(onClick = { viewModel.post(text) { text = "" } }, enabled = text.isNotBlank()) {
+                val post = {
+                    viewModel.post(text) { comment ->
+                        text = ""
+                        // A held comment isn't in the site's count until it's approved.
+                        if (!comment.held) onCommentPosted()
+                    }
+                }
+                IconButton(onClick = post, enabled = text.isNotBlank()) {
                     Icon(
                         Icons.AutoMirrored.Rounded.Send,
                         contentDescription = "Post comment",
@@ -305,6 +317,7 @@ private fun SheetAction(label: String, onClick: () -> Unit) {
 }
 
 private const val NO_COMMENTS = "No comments yet."
+private const val START_CONVERSATION = "No comments yet. Start the conversation."
 
 /** How far replies are indented, in dp. */
 private const val REPLY_INDENT = 30

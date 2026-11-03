@@ -88,7 +88,7 @@ class AppContainer(context: Context) {
     )
 
     /** wordpress-rs builds its own HTTP client, so it gets the app's User-Agent separately. */
-    val comments: CommentsSource = WordPressRsCommentsSource(settings, listOf(userAgent))
+    val comments: CommentsSource = WordPressRsCommentsSource(settings, http, listOf(userAgent))
 
     private companion object {
         const val USER_AGENT = "WPFolio/${BuildConfig.VERSION_NAME} (Android)"

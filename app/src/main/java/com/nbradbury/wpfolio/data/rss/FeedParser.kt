@@ -30,6 +30,8 @@ data class ParsedItem(
     val summaryHtml: String,
     val contentHtml: String,
     val imageUrl: String?,
+    /** From WordPress's `slash:comments` (RSS) or `thr:total` (Atom), when the feed gives it. */
+    val commentCount: Int? = null,
 )
 
 /** Parses RSS 2.0, RSS 1.0 (RDF) and Atom documents. */
@@ -72,6 +74,7 @@ object FeedParser {
                 summaryHtml = summary,
                 contentHtml = content,
                 imageUrl = findImage(item, content.ifEmpty { summary }, base),
+                commentCount = item.child("slash:comments")?.text()?.trim()?.toIntOrNull(),
             )
         }
         return ParsedFeed(
@@ -99,6 +102,7 @@ object FeedParser {
                 summaryHtml = summary,
                 contentHtml = content,
                 imageUrl = findImage(entry, content.ifEmpty { summary }, base),
+                commentCount = entry.child("thr:total")?.text()?.trim()?.toIntOrNull(),
             )
         }
         return ParsedFeed(

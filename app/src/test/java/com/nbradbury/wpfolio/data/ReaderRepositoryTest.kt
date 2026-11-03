@@ -275,6 +275,25 @@ class ReaderRepositoryTest {
     }
 
     @Test
+    fun `liking and commenting adjust the counts`() = runBlocking {
+        db.postDao().merge(
+            listOf(wpcomPost("wps:5:1", "Counted").copy(likeCount = 3), wpcomPost("wps:5:2", "Uncounted")),
+        )
+
+        repository.toggleLiked("wps:5:1")
+        assertEquals(4, db.postDao().get("wps:5:1")!!.likeCount)
+        repository.toggleLiked("wps:5:1")
+        assertEquals(3, db.postDao().get("wps:5:1")!!.likeCount)
+
+        // An unknown count stays unknown rather than starting from zero.
+        repository.toggleLiked("wps:5:2")
+        assertNull(db.postDao().get("wps:5:2")!!.likeCount)
+
+        repository.commentPosted("wps:5:2")
+        assertEquals(1, db.postDao().get("wps:5:2")!!.commentCount)
+    }
+
+    @Test
     fun `a partial list of likes doesn't clear any`() = runBlocking {
         settings.saveAccount(WpcomAccount("token", "Nick", null))
         db.postDao().merge(listOf(wpcomPost("wps:5:1", "Older like").copy(isLiked = true)))

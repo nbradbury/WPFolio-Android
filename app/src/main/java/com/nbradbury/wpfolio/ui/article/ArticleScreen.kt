@@ -341,13 +341,20 @@ private fun ArticlePage(
                     if (current.isSaved) "Remove from saved" else "Save",
                     onClick = viewModel::toggleSaved,
                 )
-                PillButton(
-                    if (current.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    if (current.isLiked) "Unlike" else "Like",
-                    onClick = viewModel::toggleLiked,
-                )
+                // Only where a like reaches the author: WordPress.com and Jetpack posts. A post liked
+                // here before that rule keeps its button, so the like can still be undone.
+                if (current.canLikeRemotely || current.isLiked) {
+                    PillButton(
+                        if (current.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        if (current.isLiked) "Unlike" else "Like",
+                        count = current.likeCount,
+                        onClick = if (signedIn || current.isLiked) viewModel::toggleLiked else onSignIn,
+                    )
+                }
                 if (commentThread != null) {
-                    PillButton(Icons.AutoMirrored.Rounded.Comment, "Comments") { commentsOpen = true }
+                    PillButton(Icons.AutoMirrored.Rounded.Comment, "Comments", count = current.commentCount) {
+                        commentsOpen = true
+                    }
                 }
                 PillButton(Icons.Rounded.Share, "Share") { context.shareLink(current.title, current.url) }
             }
@@ -362,6 +369,7 @@ private fun ArticlePage(
                 owner = pageOwner,
                 onSignIn = onSignIn,
                 onCommentOnSite = { uriHandler.openUri(current.url.substringBefore('#') + "#respond") },
+                onCommentPosted = viewModel::commentPosted,
                 onDismiss = { commentsOpen = false },
             )
         }

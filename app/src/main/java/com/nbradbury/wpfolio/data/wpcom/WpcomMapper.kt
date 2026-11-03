@@ -148,6 +148,8 @@ object WpcomMapper {
             wpcomPostId = if (isExternal) null else postId,
             // Only the liked stream says when a post was liked.
             likedAt = json.string("date_liked")?.let(FeedParser::parseDate),
+            likeCount = json.long("like_count")?.toInt(),
+            commentCount = json.obj("discussion")?.long("comment_count")?.toInt(),
         )
         return WpcomPost(entity, liked = json.bool("i_like") == true)
     }
