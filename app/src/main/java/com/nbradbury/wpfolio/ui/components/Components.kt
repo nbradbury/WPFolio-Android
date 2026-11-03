@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,6 +47,7 @@ import com.nbradbury.wpfolio.data.db.PostEntity
 import com.nbradbury.wpfolio.data.prefs.WpcomAccount
 import com.nbradbury.wpfolio.ui.theme.WpFolio
 import com.nbradbury.wpfolio.ui.theme.ui
+import java.util.Locale
 
 /**
  * The post's sampled accent, or a stable stand-in until sampling finishes. Posts without an image
@@ -164,20 +166,35 @@ fun PillButton(
     label: String,
     selected: Boolean = false,
     iconSize: Dp = 22.dp,
+    /** Shown small beside the icon, such as a post's likes; hidden when null or zero. */
+    count: Int? = null,
     onClick: () -> Unit,
 ) {
     val colors = WpFolio.colors
     val tint = if (selected) colors.pillSelectedIcon else colors.pillIcon
-    Box(
+    val shown = count?.takeIf { it > 0 }
+    Row(
         Modifier
-            .size(44.dp)
+            .height(44.dp)
+            .widthIn(min = 44.dp)
             .clip(CircleShape)
             .background(if (selected) colors.pillSelected else Color.Transparent)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .padding(horizontal = if (shown != null) 12.dp else 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(iconSize))
+        if (shown != null) Text(compactCount(shown), style = ui(13f, 600), color = tint)
     }
+}
+
+/** "7", "1.2k", "18k", "1.2M": short enough to sit beside an icon. */
+fun compactCount(n: Int): String = when {
+    n < 1_000 -> "$n"
+    n < 10_000 -> "%.1fk".format(Locale.US, n / 1_000.0).replace(".0k", "k")
+    n < 1_000_000 -> "${n / 1_000}k"
+    else -> "%.1fM".format(Locale.US, n / 1_000_000.0).replace(".0M", "M")
 }
 
 /** Round translucent button drawn over images (back, more). */

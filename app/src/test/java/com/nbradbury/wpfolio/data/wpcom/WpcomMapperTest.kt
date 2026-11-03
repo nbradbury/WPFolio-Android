@@ -96,7 +96,8 @@ class WpcomMapperTest {
               {"ID":10,"site_ID":123,"feed_ID":456,"title":"It&#8217;s quiet","excerpt":"<p>Short</p>",
                "content":"<p>Body</p>","URL":"https://altitudenotes.blog/q","author":{"name":"Mara"},
                "date":"2026-10-29T10:00:00+00:00","featured_image":"","featured_media":{"uri":"https://i.test/m.jpg","type":"image"},
-               "i_like":true,"site_name":"Altitude Notes","word_count":"1200","is_external":false},
+               "i_like":true,"site_name":"Altitude Notes","word_count":"1200","is_external":false,
+               "like_count":42,"discussion":{"comment_count":7}},
               {"ID":5,"site_ID":0,"feed_ID":789,"feed_item_ID":99,"title":"External","content":"<img src='https://i.test/c.png'>",
                "URL":"https://secondrun.film/x","date":"2026-10-28T10:00:00Z","featured_image":false,"is_external":true}
             ],"next_page_handle":"abc"}
@@ -114,12 +115,16 @@ class WpcomMapperTest {
         assertEquals(1200, wp.wordCount)
         assertTrue(wp.canLikeRemotely)
         assertTrue(liked)
+        assertEquals(42, wp.likeCount)
+        assertEquals(7, wp.commentCount)
 
         val external = posts[1].post
         assertEquals("wpf:789:99", external.id)
         assertEquals("https://i.test/c.png", external.imageUrl)
         assertFalse(external.canLikeRemotely)
         assertFalse(posts[1].liked)
+        assertNull(external.likeCount)
+        assertNull(external.commentCount)
     }
 
     @Test

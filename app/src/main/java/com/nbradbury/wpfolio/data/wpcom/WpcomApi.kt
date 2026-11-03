@@ -87,6 +87,7 @@ interface WpcomApi {
          * attachments and metadata, about 60% of the response for 20 posts.
          */
         const val POST_FIELDS = "ID,site_ID,feed_ID,feed_item_ID,is_external,title,URL,date,excerpt,content," +
-            "author,featured_image,featured_media,post_thumbnail,word_count,i_like,date_liked,site_name"
+            "author,featured_image,featured_media,post_thumbnail,word_count,i_like,date_liked,site_name,like_count," +
+            "discussion"
     }
 }

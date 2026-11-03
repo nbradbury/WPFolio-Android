@@ -63,6 +63,10 @@ class ArticleViewModel(private val postId: String, private val repository: Reade
         viewModelScope.launch { repository.toggleSaved(postId) }
     }
 
+    fun commentPosted() {
+        viewModelScope.launch { repository.commentPosted(postId) }
+    }
+
     fun toggleLiked() {
         viewModelScope.launch {
             runCatching { repository.toggleLiked(postId) }.onFailure { _messages.send("Couldn't update the like") }

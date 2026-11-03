@@ -28,11 +28,11 @@ class CommentsException(message: String) : Exception(message)
 sealed interface CommentThread {
     val postId: Long
 
-    /** WordPress.com and Jetpack sites, through WordPress.com's REST API proxy. */
-    data class WordPressCom(val blogId: Long, override val postId: Long) : CommentThread
+    /** WordPress.com and Jetpack sites, through WordPress.com's REST API proxy. [site] is a blog ID or domain. */
+    data class WordPressCom(val site: String, override val postId: Long) : CommentThread
 
     /** A self-hosted WordPress site's own REST API, read-only. */
-    data class SelfHosted(val apiRoot: String, override val postId: Long) : CommentThread
+    data class SelfHosted(val siteUrl: String, override val postId: Long) : CommentThread
 
     val canWrite: Boolean get() = this is WordPressCom
 
@@ -43,17 +43,20 @@ sealed interface CommentThread {
         /** The post's comment thread, or null when there's no way to reach its comments. */
         fun of(post: PostEntity, site: SiteEntity?): CommentThread? {
             if (post.wpcomBlogId != null && post.wpcomPostId != null) {
-                return WordPressCom(post.wpcomBlogId, post.wpcomPostId)
+                return WordPressCom(post.wpcomBlogId.toString(), post.wpcomPostId)
             }
             if (site == null || site.origin != Origin.LOCAL || !site.isWordPress) return null
             val guid = post.id.substringAfter('|')
             val postId = WP_POST_ID.find(guid)?.groupValues?.get(1)?.toLongOrNull() ?: return null
-            return SelfHosted(site.siteUrl.trimEnd('/') + "/wp-json/", postId)
+            return SelfHosted(site.siteUrl, postId)
         }
     }
 }
 
 interface CommentsSource {
+    /** Where [thread]'s comments really live: a site added by address may turn out to be on WordPress.com. */
+    suspend fun resolve(thread: CommentThread): CommentThread = thread
+
     /** One page of [thread]'s approved comments, oldest first. [page] starts at 1. */
     suspend fun list(thread: CommentThread, page: Int): CommentPage
 

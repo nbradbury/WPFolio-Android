@@ -25,16 +25,30 @@ class CommentsTest {
     @Test
     fun `finds where a post's comments live`() {
         val wpcom = post("wps:5:10", blogId = 5, postId = 10)
-        assertEquals(CommentThread.WordPressCom(5, 10), CommentThread.of(wpcom, site = null))
+        assertEquals(CommentThread.WordPressCom("5", 10), CommentThread.of(wpcom, site = null))
 
         val local = site(isWordPress = true)
         assertEquals(
-            CommentThread.SelfHosted("https://example.com/wp-json/", 123),
+            CommentThread.SelfHosted(local.siteUrl, 123),
             CommentThread.of(post("${local.id}|https://example.com/?p=123"), local),
         )
         // Other sites, and WordPress feeds whose guid doesn't carry the post ID, have no thread.
         assertNull(CommentThread.of(post("${local.id}|https://example.com/?p=123"), site(isWordPress = false)))
         assertNull(CommentThread.of(post("${local.id}|https://example.com/2026/hello/"), local))
+    }
+
+    @Test
+    fun `reads where a site's REST API lives`() {
+        assertEquals(
+            "https://example.com/wp-json/",
+            WordPressRsCommentsSource.apiRootFromLink("<https://example.com/wp-json/>; rel=\"https://api.w.org/\""),
+        )
+        assertNull(WordPressRsCommentsSource.apiRootFromLink("<https://example.com/?p=1>; rel=shortlink"))
+
+        // Sites hosted on WordPress.com point at its public API.
+        val hosted = "https://public-api.wordpress.com/wp-json/?rest_route=/sites/en.blog.wordpress.com"
+        assertEquals("en.blog.wordpress.com", WordPressRsCommentsSource.wpcomSiteOf(hosted))
+        assertNull(WordPressRsCommentsSource.wpcomSiteOf("https://example.com/wp-json/"))
     }
 
     private fun comment(id: Long, parent: Long = 0) =

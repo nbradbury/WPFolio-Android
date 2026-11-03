@@ -244,6 +244,8 @@ class ReaderRepository(
 
     suspend fun markRead(postId: String) = posts.markRead(postId)
 
+    suspend fun commentPosted(postId: String) = posts.addComment(postId)
+
     suspend fun toggleSaved(postId: String) {
         val post = posts.get(postId) ?: return
         posts.setSaved(postId, !post.isSaved)
@@ -387,5 +389,6 @@ internal fun ParsedItem.toEntity(site: SiteEntity): PostEntity {
         imageUrl = imageUrl,
         publishedAt = publishedAt ?: 0L,
         wordCount = FeedParser.wordCount(text),
+        commentCount = commentCount,
     )
 }

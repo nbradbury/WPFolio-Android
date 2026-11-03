@@ -13,7 +13,8 @@ class FeedParserTest {
     private val rss = """
         <?xml version="1.0" encoding="UTF-8"?>
         <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"
-             xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
+             xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/"
+             xmlns:slash="http://purl.org/rss/1.0/modules/slash/">
           <channel>
             <title>Second Run &amp; Friends</title>
             <link>https://secondrun.film</link>
@@ -28,6 +29,7 @@ class FeedParserTest {
               <description><![CDATA[<p>Short summary</p>]]></description>
               <content:encoded><![CDATA[<p>Full text</p><img src="/wp-content/uploads/hero.jpg">]]></content:encoded>
               <media:content url="https://cdn.example.com/media.jpg" medium="image" />
+              <slash:comments>12</slash:comments>
             </item>
             <item>
               <title>Enclosure only</title>
@@ -59,6 +61,8 @@ class FeedParserTest {
         assertEquals("<p>Full text</p><img src=\"/wp-content/uploads/hero.jpg\">", first.contentHtml)
         assertEquals("<p>Short summary</p>", first.summaryHtml)
         assertEquals(Instant.parse("2026-10-29T10:15:00Z").toEpochMilli(), first.publishedAt)
+        assertEquals(12, first.commentCount)
+        assertNull(feed.items[1].commentCount)
     }
 
     @Test

@@ -51,6 +51,9 @@ data class PostEntity(
     val isLiked: Boolean = false,
     /** When the post was liked, if known; likes from before version 2 and some synced likes don't say. */
     val likedAt: Long? = null,
+    /** Null when the source doesn't say: likes are only counted on WordPress.com. */
+    val likeCount: Int? = null,
+    val commentCount: Int? = null,
 ) {
     val canLikeRemotely: Boolean get() = wpcomBlogId != null && wpcomPostId != null
 }
