@@ -11,6 +11,8 @@ import coil3.request.crossfade
 import com.nbradbury.wpfolio.data.AccentSampler
 import com.nbradbury.wpfolio.data.HttpsUpgradeInterceptor
 import com.nbradbury.wpfolio.data.ReaderRepository
+import com.nbradbury.wpfolio.data.comments.CommentsSource
+import com.nbradbury.wpfolio.data.comments.WordPressRsCommentsSource
 import com.nbradbury.wpfolio.data.db.WpFolioDatabase
 import com.nbradbury.wpfolio.data.prefs.SettingsStore
 import com.nbradbury.wpfolio.data.rss.OkHttpRssSource
@@ -21,6 +23,7 @@ import com.nbradbury.wpfolio.data.wpcom.WpcomAuthInterceptor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -49,14 +52,16 @@ class AppContainer(context: Context) {
     val settings = SettingsStore(context)
     val database = WpFolioDatabase.create(context)
 
+    private val userAgent = Interceptor { chain ->
+        chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
+    }
+
     private val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(HttpsUpgradeInterceptor())
         .addNetworkInterceptor(HttpsUpgradeInterceptor())
-        .addInterceptor { chain ->
-            chain.proceed(chain.request().newBuilder().header("User-Agent", USER_AGENT).build())
-        }
+        .addInterceptor(userAgent)
         .build()
 
     val imageLoader: ImageLoader = ImageLoader.Builder(context)
@@ -81,6 +86,9 @@ class AppContainer(context: Context) {
         rss = OkHttpRssSource(http),
         wpcom = RetrofitWpcomSource(wpcomApi),
     )
+
+    /** wordpress-rs builds its own HTTP client, so it gets the app's User-Agent separately. */
+    val comments: CommentsSource = WordPressRsCommentsSource(settings, listOf(userAgent))
 
     private companion object {
         const val USER_AGENT = "WPFolio/${BuildConfig.VERSION_NAME} (Android)"

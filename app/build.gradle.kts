@@ -15,6 +15,9 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1"
+
+        // wordpress-rs ships a ~29 MB native library per ABI: keep phones and the x86_64 emulator only.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     buildTypes {
@@ -74,6 +77,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.jsoup)
+    implementation(libs.wordpress.rs)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

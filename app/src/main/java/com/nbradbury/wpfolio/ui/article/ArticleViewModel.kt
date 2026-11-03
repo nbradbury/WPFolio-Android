@@ -3,6 +3,7 @@ package com.nbradbury.wpfolio.ui.article
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nbradbury.wpfolio.data.ReaderRepository
+import com.nbradbury.wpfolio.data.comments.CommentThread
 import com.nbradbury.wpfolio.data.db.PostEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +32,16 @@ class ArticleViewModel(private val postId: String, private val repository: Reade
         .distinctUntilChanged()
         .flatMapLatest { repository.site(it) }
         .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Where this post's comments live; null while loading or when they can't be reached. */
+    val commentThread: StateFlow<CommentThread?> = post
+        .filterNotNull()
+        .map { repository.commentThread(it) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val signedIn: StateFlow<Boolean> = repository.account.map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val blocks: StateFlow<List<Block>?> = post

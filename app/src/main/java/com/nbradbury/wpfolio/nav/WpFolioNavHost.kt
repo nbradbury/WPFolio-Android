@@ -79,6 +79,7 @@ fun WpFolioNavHost(startDestination: Any) {
                 list = route.list,
                 onBack = { nav.popBackStack() },
                 onOpenSite = openSite,
+                onSignIn = signIn,
             )
         }
         composable<SiteRoute> { entry ->
