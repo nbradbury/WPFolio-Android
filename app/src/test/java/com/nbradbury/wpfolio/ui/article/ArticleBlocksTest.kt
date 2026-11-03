@@ -98,6 +98,27 @@ class ArticleBlocksTest {
     }
 
     @Test
+    fun `keeps images wrapped in inline links outside paragraphs`() {
+        // Blogger wraps each image in a link to the full-size file, inside a div.
+        val html = """
+            <div class="separator"><a href="https://a.test/big.jpg"><img src="https://a.test/photo.jpg"></a></div>
+            <div>Text with an emoji <span><img class="emoji" src="https://a.test/e.png"></span> inline.</div>
+        """.trimIndent()
+        val blocks = ArticleBlocks.parse(html, "https://a.test/")
+        assertEquals(Block.Image("https://a.test/photo.jpg", null), blocks.first())
+        assertEquals(1, blocks.filterIsInstance<Block.Image>().size)
+    }
+
+    @Test
+    fun `header rows never outnumber the rows kept`() {
+        val html = """<table><thead><tr></tr><tr><th>A</th></tr></thead></table>"""
+        assertEquals(
+            listOf(Block.Table(listOf(listOf("A")), headerRows = 1, caption = null)),
+            ArticleBlocks.parse(html, "https://a.test/"),
+        )
+    }
+
+    @Test
     fun `keeps tables as rows of cells`() {
         // Markup as WordPress's table block writes it.
         val html = """

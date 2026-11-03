@@ -92,6 +92,9 @@ object ArticleBlocks {
         "script", "style", "noscript", "audio", "object", "embed", "form", "button", "svg", "input",
     )
     private const val MEDIA = "iframe, video"
+    private val CELLS = setOf("td", "th")
+    /** Images that are content, not emoji drawn inline in text. */
+    private const val CONTENT_IMAGE = "img:not(.wp-smiley):not(.emoji)"
 
     /** Block-editor, classic shortcode and Jetpack tiled galleries. */
     private val GALLERIES = setOf("wp-block-gallery", "gallery", "tiled-gallery", "wp-block-jetpack-tiled-gallery")
@@ -178,8 +181,10 @@ object ArticleBlocks {
                 node is TextNode -> inline.append(node.outerHtml())
                 node !is Element -> Unit
                 node.tagName() in SKIP -> Unit
-                // Inline wrappers such as WordPress's <span class="embed-youtube"> can hold a video.
-                node.tagName() in INLINE && node.selectFirst(MEDIA) == null -> inline.append(node.outerHtml())
+                // Inline wrappers can hold a video (WordPress's <span class="embed-youtube">) or an
+                // image (Blogger's <a href="full.jpg"><img></a>), which need blocks of their own.
+                node.tagName() in INLINE && node.selectFirst("$MEDIA, $CONTENT_IMAGE") == null ->
+                    inline.append(node.outerHtml())
                 else -> {
                     flush()
                     block(node, out, depth)
@@ -282,12 +287,16 @@ object ArticleBlocks {
 
     private fun table(table: Element, caption: String?): Block.Table? {
         val rows = table.select("tr").map { row ->
-            row.children().filter { it.tagName() == "td" || it.tagName() == "th" }.map { it.html().trim() }
+            row.children().filter { it.tagName() in CELLS }.map { it.html().trim() }
         }.filter { it.isNotEmpty() }
         if (rows.isEmpty()) return null
         // Header rows are those in <thead>, or a first row made only of <th>.
-        val headerRows = table.select("thead tr").size.takeIf { it > 0 }
-            ?: if (table.selectFirst("tr")?.children()?.all { it.tagName() == "th" } == true) 1 else 0
+        // Rows without cells were dropped above, so only count header rows that have them.
+        val headerRows = (
+            table.select("thead tr").count { row -> row.children().any { it.tagName() in CELLS } }
+                .takeIf { it > 0 }
+                ?: if (table.selectFirst("tr")?.children()?.all { it.tagName() == "th" } == true) 1 else 0
+            ).coerceAtMost(rows.size)
         return Block.Table(rows, headerRows, caption)
     }
 

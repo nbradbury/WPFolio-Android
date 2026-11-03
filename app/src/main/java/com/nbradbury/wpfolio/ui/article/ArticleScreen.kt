@@ -117,6 +117,7 @@ import com.nbradbury.wpfolio.ui.components.readableWidth
 import com.nbradbury.wpfolio.ui.components.rememberHideOnScrollState
 import com.nbradbury.wpfolio.ui.feed.ListRow
 import com.nbradbury.wpfolio.ui.openInBrowser
+import com.nbradbury.wpfolio.ui.rememberItemViewModelStoreOwner
 import com.nbradbury.wpfolio.ui.shareLink
 import com.nbradbury.wpfolio.ui.theme.SystemBarIcons
 import com.nbradbury.wpfolio.ui.theme.WpFolio
@@ -199,7 +200,9 @@ private fun ArticlePage(
     onNext: () -> Unit,
     onViewerOpenChange: (Boolean) -> Unit,
 ) {
-    val viewModel = wpFolioViewModel(key = postId) { ArticleViewModel(postId, it.repository) }
+    // Scoped to this page, so swiping past many posts doesn't keep each one's content in memory.
+    val pageOwner = rememberItemViewModelStoreOwner()
+    val viewModel = wpFolioViewModel(key = postId, owner = pageOwner) { ArticleViewModel(postId, it.repository) }
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()

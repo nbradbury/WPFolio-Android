@@ -61,6 +61,8 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  */
 @Composable
 fun PhotoViewer(images: List<ViewerImage>, startIndex: Int, onDismiss: () -> Unit) {
+    // A viewer restored after process death or a theme change can compose before its images load.
+    if (images.isEmpty()) return
     val pager = rememberPagerState(initialPage = startIndex.coerceIn(0, images.lastIndex)) { images.size }
     var showControls by remember { mutableStateOf(true) }
     BackHandler(onBack = onDismiss)

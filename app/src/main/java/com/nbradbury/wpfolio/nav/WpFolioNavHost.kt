@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -67,7 +68,8 @@ fun WpFolioNavHost(startDestination: Any) {
             AddScreen(
                 onClose = { nav.popBackStack() },
                 onOpenSite = openSearchResult,
-                onSubscribed = { nav.popBackStack() },
+                // The reader may have opened a site from Add while the subscribe ran; leave that open.
+                onSubscribed = { if (nav.currentDestination?.hasRoute<AddRoute>() == true) nav.popBackStack() },
             )
         }
         composable<ArticleRoute> { entry ->
