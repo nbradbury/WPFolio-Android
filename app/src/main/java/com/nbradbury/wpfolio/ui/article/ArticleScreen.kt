@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.selection.rememberSelectionState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Comment
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -135,7 +136,13 @@ private val SheetOverlap = 26.dp
 private const val BODY_SIZE = 17f
 
 @Composable
-fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite: (String) -> Unit) {
+fun ArticleScreen(
+    postId: String,
+    list: PostList,
+    onBack: () -> Unit,
+    onOpenSite: (String) -> Unit,
+    onSignIn: () -> Unit,
+) {
     val context = LocalContext.current
     val repository = context.container.repository
     // Captured once (and kept across rotation) so posts arriving in a refresh can't shift the pages.
@@ -179,6 +186,7 @@ fun ArticleScreen(postId: String, list: PostList, onBack: () -> Unit, onOpenSite
             isCurrent = page == pager.settledPage,
             onBack = onBack,
             onOpenSite = onOpenSite,
+            onSignIn = onSignIn,
             onNext = { scope.launch { pager.animateScrollToPage(page + 1) } },
             onViewerOpenChange = { viewerOpen = it },
         )
@@ -197,6 +205,7 @@ private fun ArticlePage(
     isCurrent: Boolean,
     onBack: () -> Unit,
     onOpenSite: (String) -> Unit,
+    onSignIn: () -> Unit,
     onNext: () -> Unit,
     onViewerOpenChange: (Boolean) -> Unit,
 ) {
@@ -206,6 +215,9 @@ private fun ArticlePage(
     val post by viewModel.post.collectAsStateWithLifecycle()
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val siteSubscribed by viewModel.siteSubscribed.collectAsStateWithLifecycle()
+    val commentThread by viewModel.commentThread.collectAsStateWithLifecycle()
+    val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+    var commentsOpen by rememberSaveable { mutableStateOf(false) }
     val colors = WpFolio.colors
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -334,11 +346,25 @@ private fun ArticlePage(
                     if (current.isLiked) "Unlike" else "Like",
                     onClick = viewModel::toggleLiked,
                 )
+                if (commentThread != null) {
+                    PillButton(Icons.AutoMirrored.Rounded.Comment, "Comments") { commentsOpen = true }
+                }
                 PillButton(Icons.Rounded.Share, "Share") { context.shareLink(current.title, current.url) }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
         footnote?.let { FootnoteSheet(it, onDismiss = { footnote = null }) }
+        val thread = commentThread
+        if (commentsOpen && thread != null) {
+            CommentsSheet(
+                thread = thread,
+                signedIn = signedIn,
+                owner = pageOwner,
+                onSignIn = onSignIn,
+                onCommentOnSite = { uriHandler.openUri(current.url.substringBefore('#') + "#respond") },
+                onDismiss = { commentsOpen = false },
+            )
+        }
         viewerIndex?.let { index ->
             PhotoViewer(images, index, onDismiss = { viewerIndex = null })
         }
@@ -588,11 +614,11 @@ private fun NextPost(postId: String, onClick: () -> Unit) {
 
 /** Converted once per block rather than on every recomposition or scroll back into view. */
 @Composable
-private fun rememberHtml(html: String, links: TextLinkStyles): AnnotatedString =
+internal fun rememberHtml(html: String, links: TextLinkStyles): AnnotatedString =
     remember(html, links) { AnnotatedString.fromHtml(html, linkStyles = links) }
 
 @Composable
-private fun rememberLinkStyles(): TextLinkStyles {
+internal fun rememberLinkStyles(): TextLinkStyles {
     val color = WpFolio.colors.text
     return remember(color) { TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)) }
 }

@@ -1,5 +1,6 @@
 package com.nbradbury.wpfolio.data
 
+import com.nbradbury.wpfolio.data.comments.CommentThread
 import com.nbradbury.wpfolio.data.db.WpFolioDatabase
 import com.nbradbury.wpfolio.data.db.Origin
 import com.nbradbury.wpfolio.data.db.PostEntity
@@ -73,6 +74,9 @@ class ReaderRepository(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun feed(): Flow<List<PostEntity>> = feedLimit.flatMapLatest { posts.observeFeed(it) }
     fun post(id: String): Flow<PostEntity?> = posts.observe(id)
+
+    /** Where [post]'s comments live, or null if the app can't reach them. */
+    suspend fun commentThread(post: PostEntity): CommentThread? = CommentThread.of(post, sites.get(post.siteId))
     fun site(id: String): Flow<SiteEntity?> = sites.observe(id)
     fun sitePosts(id: String): Flow<List<PostEntity>> = posts.observeForSite(id)
 
