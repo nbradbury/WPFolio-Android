@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<verification-metadata xmlns="https://schema.gradle.org/dependency-verification" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://schema.gradle.org/dependency-verification https://schema.gradle.org/dependency-verification/dependency-verification-1.3.xsd">
+   <configuration>
+      <verify-metadata>true</verify-metadata>
+      <verify-signatures>false</verify-signatures>
+      <trusted-artifacts>
+         <!-- Only wordpress-rs is verified: it comes from a mutable S3 bucket, not Google or Maven Central. -->
+         <trust group="^(?!rs[.]wordpress[.]api$).*$" regex="true"/>
+         <!-- Sources and javadoc the IDE downloads. -->
+         <trust file=".*-(sources|javadoc)[.]jar" regex="true"/>
+      </trusted-artifacts>
+   </configuration>
+   <components>
+      <!-- When bumping wordpress-rs, regenerate these by running assembleDebug with write-verification-metadata sha256. -->
+      <component group="rs.wordpress.api" name="android" version="1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711">
+         <artifact name="android-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.aar">
+            <sha256 value="cb9e5d63300495bc8901135867ef09e57d68549c924a6007225de0abedf961e1"/>
+         </artifact>
+         <artifact name="android-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.module">
+            <sha256 value="fbfb5ee8371b1c8a2de650393b80664622d6fb019812d353625790eca1370c7b"/>
+         </artifact>
+         <artifact name="android-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.pom">
+            <sha256 value="509a140a815be4b81eb17dcdc51ffa8dd5bc470ab0a88c70660a5b6cba5dfe32"/>
+         </artifact>
+      </component>
+      <component group="rs.wordpress.api" name="kotlin" version="1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711">
+         <artifact name="kotlin-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.jar">
+            <sha256 value="896cca6d9c1f6d05f6bcc42259c37d1f6f8c9a4c8c379b178abff37fc2647529"/>
+         </artifact>
+         <artifact name="kotlin-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.module">
+            <sha256 value="ddf969505b7e599667231d24057e2b8a0ef0dba0ee1fda038d7475b223aa2fe9"/>
+         </artifact>
+         <artifact name="kotlin-1692-6b0b9e59b0282019aa5f779ce77af3bfd3640711.pom">
+            <sha256 value="676685717f7d6c5d661fd9414ec1d33363ff934c6a469ce274caee0bf3b1a855"/>
+         </artifact>
+      </component>
+   </components>
+</verification-metadata>
